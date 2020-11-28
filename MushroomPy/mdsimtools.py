@@ -10,7 +10,7 @@ import time
 import warnings
 from itertools import cycle
 
-# import openpyxl (this or a similar excel writing engine must be installed to export XLSX reports)
+# import openpyxl (this excel writing engine must be installed to export XLSX reports)
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -78,8 +78,8 @@ class SDT0d:
 
 
 class AMROC1d:
-    """**One-dimensional** detonation analysis tool, intended for use with simulation data from
-    '../amroc/clawpack/applications/euler_chem/1d/DetonationTube'. This class is designed for use with a
+    """**One-dimensional** detonation analysis tool, intended for use with simulation data from the virtual test
+    facility (VTF) '../amroc/clawpack/applications/euler_chem/1d/DetonationTube'. This class is designed for use with a
     fuel:oxidiser:monodiluent setup.
 
     Where the root directory contains this module (root/mdsimtools.py), simulation text files should be stored here:
@@ -112,7 +112,7 @@ class AMROC1d:
         # Find all available data folders in the simulation data folder
         datadirlist = [datafile for datafile in os.listdir(self.simdata_path) if "data" in datafile]
 
-        # Produce an ordered list of data case folders, if any were discovered
+        # Produce an ordered list of pressure cases, if any were discovered
         datadir_sorted = self._getsortedcataloguekeys(cataloguekeyslist=datadirlist)
 
         # Construct a file hierarchy tree/catalogue
@@ -121,7 +121,7 @@ class AMROC1d:
         # For each data folder, add tree branches for mechanism type
         for casename in datadir_sorted:
             case_path = os.path.join(self.simdata_path, casename)
-            mechanisms = os.listdir(case_path)
+            mechanisms = [mechanism for mechanism in os.listdir(case_path) if ".ini" not in mechanism]
             datacatalogue[casename] = dict(zip(mechanisms, [None for _ in range(len(mechanisms))]))
 
             # For each mechanism type, add tree branches for data files available
@@ -143,25 +143,25 @@ class AMROC1d:
         # As statistics become available, store them in here
         self.statistics = {}
 
-    def case_read(self, datacasefolder):
+    def case_read(self, pressurestudy):
 
         # Is the folder name valid? Proceed if the folder can be found in the catalogue
-        if datacasefolder in self.datacatalogue.keys():
+        if pressurestudy in self.datacatalogue.keys():
 
             # Inform the user task is beginning
-            print(f"{_gettimestr()} Reading case '{datacasefolder}'...")
+            print(f"{_gettimestr()} Reading case '{pressurestudy}'...")
 
             # Create an entry in the volatile data catalogue
-            self.volatilecatalogue[datacasefolder] = {}
+            self.volatilecatalogue[pressurestudy] = {}
 
-            # For each set of data contained by a mechanism folder in the data case folder (described by full catalogue)
-            for _, (mechanism, textfiles) in enumerate(self.datacatalogue[datacasefolder].items()):
+            # For each set of data contained by a mechanism folder in the pressure case (described by full catalogue)
+            for _, (mechanism, textfiles) in enumerate(self.datacatalogue[pressurestudy].items()):
 
                 temptxtdict = {}
 
                 # For each text file in the list of text files within a mechanism
                 for textfile in textfiles:
-                    datatxt_path = os.path.join(self.simdata_path, datacasefolder, mechanism, textfile)
+                    datatxt_path = os.path.join(self.simdata_path, pressurestudy, mechanism, textfile)
 
                     # Produce a list of headers from the datafile
                     header = pd.read_csv(datatxt_path, nrows=0, sep=',\s+', skipinitialspace=True, engine='python')
@@ -177,25 +177,25 @@ class AMROC1d:
                     temptxtdict = (
                         {k: v for k, v in
                          sorted(temptxtdict.items(), key=lambda kvtuple: kvtuple[1]["Time Elapsed"])})
-                    self.volatilecatalogue[datacasefolder][mechanism] = temptxtdict
+                    self.volatilecatalogue[pressurestudy][mechanism] = temptxtdict
 
         # The folder name queried could not be found in the available data catalogue, return a warning
         else:
-            warnmsg = f"Could not find '{datacasefolder}' in available data cases!"
+            warnmsg = f"Could not find '{pressurestudy}' in available data cases!"
             warnings.warn(warnmsg)
 
-    def case_remove(self, datacasefolder):
+    def case_remove(self, pressurestudy):
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Removing data case '{datacasefolder}'...")
+        print(f"{_gettimestr()} Removing data case '{pressurestudy}'...")
 
         # Is the folder name valid? Proceed if the folder can be found in the catalogue
-        if datacasefolder in self.volatilecatalogue.keys():
-            removed = self.volatilecatalogue.pop(datacasefolder)
+        if pressurestudy in self.volatilecatalogue.keys():
+            removed = self.volatilecatalogue.pop(pressurestudy)
             return removed
         # The folder name queried could not be found in the volatile data catalogue, return a warning
         else:
-            warnmsg = f"Could not find '{datacasefolder}' in loaded data cases!"
+            warnmsg = f"Could not find '{pressurestudy}' in loaded data cases!"
             warnings.warn(warnmsg)
 
     def data_headerscatalogue(self):
@@ -261,7 +261,7 @@ class AMROC1d:
 
                     # Initialise parameters to build a pandas dataframe to track the combustion front
                     combustiontracker = [["time (s)", "x"]]
-                    _, _, q, _ = self.case_initialconditions(datacase=datacase, mechanism=mechanism)
+                    _, _, q, _ = self.case_initialconditions(pressurestudy=datacase, mechanism=mechanism)
                     flamefront_idx = 0
 
                     # For each header
@@ -320,7 +320,7 @@ class AMROC1d:
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
-        # Track the progress of the function using a file-counting variable
+        # Track the progress of the method using a file-counting variable
         filecount = 0
 
         # For every data case, every mechanism within, and every header there-in, produce CSVs
@@ -360,7 +360,7 @@ class AMROC1d:
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
-        # Track the progress of the function using a file-counting variable
+        # Track the progress of the method using a file-counting variable
         filecount = 0
 
         # The list of headers to plot are headers that are common across mechanisms, not relating to species or position
@@ -522,7 +522,7 @@ class AMROC1d:
             for dictionary in score_dicts:
                 similarityscore_dict[datacase].update(copy.deepcopy(dictionary))
 
-        # Function for finding the similarity score [a, b, c] for nested lists [[a1, b1, c1][...][an, bn, cn]]
+        # Method for finding the similarity score [a, b, c] for nested lists [[a1, b1, c1][...][an, bn, cn]]
         def find_similarityscores(nestednumberslists):
 
             # The nested number lists need to have their 'nth' elements averaged into a new list
@@ -603,8 +603,8 @@ class AMROC1d:
         """
 
         # Preamble
-        statistics_dict = self.data_statistics()
         volcat = self.volatilecatalogue
+        statistics_dict = self.data_statistics()
 
         # Initialise a dictionary to store the results in
         detonation_dict = {}
@@ -623,7 +623,7 @@ class AMROC1d:
         def detonationcheck_flamefront(statistics_mechanism_df):
             # What is the furthest distance along the tube reached (in centimetres)
             furthestdistance_x = max(statistics_mechanism_df["ReactionFront"]["x"])
-            # What is the index this distance is first reached
+            # What is the first index this distance is first reached
             furthestdistance_idx = list(statistics_mechanism_df["ReactionFront"]["x"]).index(furthestdistance_x)
             # What is the time taken to reach this distance (in seconds)
             furthestdistance_s = statistics_mechanism_df["ReactionFront"]["time (s)"][furthestdistance_idx]
@@ -632,21 +632,20 @@ class AMROC1d:
             listfinalitem_idx = len(statistics_mechanism_df["ReactionFront"]["x"]) - 1
 
             # If the furthest distance travelled index is equal to than the total tracked index, the sim did not finish
-            if listfinalitem_idx == furthestdistance_idx:
-                return "DNF"
 
-            # Else, work out the flame front average Mach number
-            else:
-                # What is the average speed of the wave at this point?
-                avgwavespeed_mps = furthestdistance_x / 100 / furthestdistance_s
-                # What is the speed of sound?
-                a_mps = st.fmean(list(statistics_mechanism_df["SpeedofSound"]["mean"])[0:furthestdistance_idx])
+            # What is the average speed of the wave at this point, in Mach?
+            avgwavespeed_mps = furthestdistance_x / 100 / furthestdistance_s
+            a_mps = st.fmean(list(statistics_mechanism_df["SpeedofSound"]["mean"])[0:furthestdistance_idx])
+            mach = avgwavespeed_mps / a_mps
 
-                mach = avgwavespeed_mps / a_mps
-                if mach >= 1:
-                    return True
+            if mach >= 1:
+                # If the flame front first reaches its max index at the end-wall, the simulation did not finish
+                if listfinalitem_idx == furthestdistance_idx:
+                    return "DNF"
                 else:
-                    return False
+                    return True
+            else:
+                return False
 
         # For each datacase available in the volatile catalogue
         for datacase in self._getsortedcataloguekeys(cataloguekeyslist=list(self.volatilecatalogue.keys())):
@@ -672,7 +671,7 @@ class AMROC1d:
         # Find all available data folders in the simulation data folder
         datadirlist = cataloguekeyslist
 
-        # Produce an ordered list of data case folders, if any were discovered
+        # Produce an ordered list of pressure cases, if any were discovered
         datadir_sorted = []
         if len(datadirlist) > 0:
             # Break up all the data folder names into lists containing [driver_pa, driven_pa, diluent_molfrac, "data"]
@@ -701,7 +700,7 @@ class AMROC1d:
         detonationcheck_dict = self.data_detonationcheck()
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Exporting detonation booleans...")
+        print(f"{_gettimestr()} Exporting detonation report...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "reports")
@@ -721,8 +720,6 @@ class AMROC1d:
                 colour = '#7FFF00'  # CSS chartreuse
             elif val == "DNF":
                 colour = '#00FA9A'  # CSS mediumspringgreen
-            elif val == "Weak":
-                colour = '#7FFFD4'  # CSS aquamarine
             # Unsuccessful detonations
             elif val is False:
                 colour = '#FFD700'  # CSS darkorange
@@ -796,18 +793,15 @@ class AMROC1d:
         writer.save()
         print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
-    def case_initialconditions(self, datacase, mechanism):
+    def case_initialconditions(self, pressurestudy, mechanism):
 
         # Preamble
         volcat = self.volatilecatalogue
 
-        # Work out the number of moles of diluent (stored in the name of the data case)
-        diluentmoles = float(datacase.split("_")[2])
-
         # Set up a simple dataframe to refer back to, of initial conditions
-        initialdf = volcat[datacase][mechanism]["dat_0.txt"]["DataframeObj"]
+        initialdf = volcat[pressurestudy][mechanism]["dat_0.txt"]["DataframeObj"]
 
-        # First find initial conditions P1, T1, and q (follows)
+        # First find initial conditions P1, T1, and q (follows), assuming the section length is longer than the driver
         p1 = st.mode(initialdf["Pressure"])
         t1 = st.mode(initialdf["Temperature"])
 
@@ -816,6 +810,9 @@ class AMROC1d:
         specieslist = ["-".join(sublist) for sublist in species]
         speciesfracs = [st.mode(initialdf[species]) for species in specieslist]
         speciesdict = dict(zip([species.split("-")[1] for species in specieslist], speciesfracs))
+
+        # Work out the number of moles of diluent (stored in the name of the data case)
+        diluentmoles = float(pressurestudy.split("_")[2])
 
         # Work out the fraction of the mixture that is diluent, if at all
         diluentfrac = 1 - sum(speciesfracs)
@@ -856,7 +853,7 @@ class AMROC1d:
             for mechanism in mechanisms:
 
                 # Work out the quantities required by the Shock and Detonation Toolbox
-                p1, t1, q, diluentmoles = self.case_initialconditions(datacase=datacase, mechanism=mechanism)
+                p1, t1, q, diluentmoles = self.case_initialconditions(pressurestudy=datacase, mechanism=mechanism)
 
                 # If 'fast' is true and q=C2H4:3O2:xAr, look for a pre-baked approximation
                 if (fast is True) and ("C2H4:1.00 O2:3.00 Ar:" in q) and ("Ar" == q.split(" ")[-1].split(":")[0]):
@@ -897,20 +894,49 @@ class AMROC1d:
 
         return znd_pratio_dict
 
+    def case_kernelconditions(self, pressurestudy, mechanism):
+
+        # Preamble
+        volcat = self.volatilecatalogue
+
+        # Set up a simple dataframe to refer back to, of initial conditions
+        initialdf = volcat[pressurestudy][mechanism]["dat_0.txt"]["DataframeObj"]
+
+        # Find initial conditions P1, T1
+        p1, t1, _, _ = self.case_initialconditions(pressurestudy=pressurestudy, mechanism=mechanism)
+
+        # Find the first position index in the tube, where "initial conditions" begin
+        initialconditions_idx = list(initialdf["Temperature"]).index(t1)
+
+        # Find the conditions of the kernel
+        pk = max(initialdf["Pressure"])
+        tk = max(initialdf["Temperature"])
+        xk = initialdf["x"][initialconditions_idx]
+
+        return pk, tk, xk, initialconditions_idx
+
+    def export_kernelreport(self):
+
+        # The report generator is dependent on a module not required by the rest of the code
+        try:
+            import openpyxl
+        except ImportError:
+            raise ImportError("Could not create report, ensure module 'openpyxl' is installed!")
+
 
 if __name__ == "__main__":
     test1d = AMROC1d()
 
-    moles = [10]
+    moles = [2]
     for mole in moles:
-        test1d.case_read(datacasefolder=f"50_10_{mole}_data")
-        # test1d.case_read(datacasefolder=f"90_50_{mole}_data")
-
-    test1d.data_detonationcheck()
+        test1d.case_read(pressurestudy=f"50_10_{mole}_data")
+        # test1d.case_read(pressurestudy=f"90_50_{mole}_data")
 
     # for testcase in test1d.datacatalogue:
-    #     test1d.case_read(datacasefolder=testcase)
-    #
+    #     test1d.case_read(pressurestudy=testcase)
+
     # test1d.export_statistics()
     # test1d.export_detonationreport()
     # test1d.plot_mechanisms(colourseed=True)
+
+    print(test1d.case_kernelconditions("50_10_2_data", "N2_C2H4_Jachi"))
