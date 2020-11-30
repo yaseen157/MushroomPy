@@ -13,6 +13,7 @@ from itertools import cycle
 # import openpyxl (this excel writing engine must be installed to export XLSX reports)
 import numpy as np
 import pandas as pd
+from matplotlib import cm
 from matplotlib import pyplot as plt
 from sdtoolbox.postshock import CJspeed, PostShock_fr, PostShock_eq
 
@@ -947,6 +948,24 @@ class AMROC1d:
         # Create a new dictionary with the intention of storing similarity by the diluent molecule used
         diluentsimilarity_dict = dict(zip(diluentmolecules, [{} for _ in diluentmolecules]))
 
+        # Define a function the export engine will use to colour code the results
+        def highlight_vals(val):
+
+            # Use a matplotlib colour map
+            cmap = cm.get_cmap("winter")
+
+            # If the value is a float, it can be colour mapped
+            if type(val) == float:
+                # Clamp the input similarity score to a colour range 30% of the map
+                cmap_idx = np.interp(val, [0.95, 1], [0.7, 1])
+                r, g, b, a = cmap(cmap_idx)
+                colour = f"#{int(255 * r):02x}{int(255 * g):02x}{int(255 * b):02x}"
+
+                # Return the cell highlight colour
+                return f"background-color: {colour}"
+            else:
+                return ""
+
         # Step 1: Refactor the detonation boolean dictionary by diluent used
         # For each unique molecule of diluent
         for diluentmolecule in diluentmolecules:
@@ -1032,7 +1051,8 @@ class AMROC1d:
 
                 # Generate the pandas dataframes and store into excel sheets
                 df = pd.DataFrame(rows[1:], columns=rows[0])
-                df.to_excel(writer, index=False, engine="openpyxl", sheet_name=f"{diluentmolecule}_{scorekey}")
+                df.style.applymap(highlight_vals).to_excel(writer, index=False, engine="openpyxl",
+                                                           sheet_name=f"{diluentmolecule}_{scorekey}")
 
         # Save excel worksheet and write-out
         writer.save()
