@@ -448,7 +448,7 @@ class AMROC1d:
             for _, (datacase, mechanisms) in enumerate(self.data_headerscatalogue().items()):
 
                 # Take from index [1:] to omit 'x' (positional data) from common headers
-                headersets_list = [set(headerlist[1:]) for headerlist in mechanisms.values()]
+                headersets_list = [set(headerlist) for headerlist in mechanisms.values()]
 
                 # If a common header could not be found, it is likely no mechanisms exist, or mechanism data is empty
                 if len(headersets_list) == 0:
@@ -457,8 +457,9 @@ class AMROC1d:
             # The set of common headers can be found from set intersection of a nested list of volatile headers
             intersectingheaders_set = set.intersection(*headersets_list)
 
-            # Even if they prove to be common headers, remove any headers relating to gaseous species molar fractions
+            # Even if are common headers, remove any headers relating to gaseous species molar fractions or position
             commonheaders_list = [elem for elem in intersectingheaders_set if "Y_" not in elem]
+            commonheaders_list.remove("x")
 
         # If no data is loaded in the volatile catalogue, then the list of available headers is simply empty
         else:
@@ -484,7 +485,7 @@ class AMROC1d:
         return intersectingtimesteps
 
     def _getsimilarityscores(self):
-        """To compare several mechanisms for a datacase, a self-proposed method is used to compare the results of
+        """To compare several mechanisms for a pressurecase, a self-proposed method is used to compare the results of
         mechanisms, by assigning a similarity score (Si) to each mechanism.
 
         S1 = similarity score for the peak header values from a mechanism.
@@ -515,12 +516,12 @@ class AMROC1d:
         score_dicts = [{header: dict(zip(scorekeys, [{} for _ in range(len(scorekeys))]))} for header in headers_isct]
 
         # Create a dictionary to store all similarity scores in
-        # e.g. dict={datacase : {header : {"maximum" : {}, "mean" : {}}, header2 : {...}}, datacase2 : {...}, ...}
+        # e.g. dict={pressurecase : {header : {"maximum" : {}, "mean" : {}}, header2 : {...}}, datacase2 : {...}, ...}
         similarityscore_dict = {}
-        for datacase in statistics_dict.keys():
-            similarityscore_dict[datacase] = {}
+        for pressurecase in statistics_dict.keys():
+            similarityscore_dict[pressurecase] = {}
             for dictionary in score_dicts:
-                similarityscore_dict[datacase].update(copy.deepcopy(dictionary))
+                similarityscore_dict[pressurecase].update(copy.deepcopy(dictionary))
 
         # Method for finding the similarity score [a, b, c] for nested lists [[a1, b1, c1][...][an, bn, cn]]
         def find_similarityscores(nestednumberslists):
@@ -542,17 +543,17 @@ class AMROC1d:
 
             return np_averagescores.tolist()
 
-        # For each datacase as passed in with the statistics dictionary
-        for _, (datacase, mechanisms) in enumerate(statistics_dict.items()):
+        # For each pressurecase as passed in with the statistics dictionary
+        for _, (pressurecase, mechanisms) in enumerate(statistics_dict.items()):
 
-            # Step 1: Extract and aggregate statistical data for each datacase
-            # Construct a temporary dictionary for a datacase
+            # Step 1: Extract and aggregate statistical data for each pressurecase
+            # Construct a temporary dictionary for a pressurecase
             headerstats_dict = {}
             headerstats_dict.clear()
             for dictionary in score_dicts:
                 headerstats_dict.update(copy.deepcopy(dictionary))
 
-            # All the statistical data from all mechanisms should be packaged into the datacase-specific temp dictionary
+            # All the statistical data from all mechanisms should be packaged into the pressurecase-specific temp dictionary
             for mechanism in mechanisms:
 
                 # Identify the diluent used in the mechanism - we need to separate scored curves by the diluent used
@@ -560,7 +561,7 @@ class AMROC1d:
 
                 # For every header, prepare its statistical data
                 for header in headers_isct:
-                    headerdf = statistics_dict[datacase][mechanism][header]
+                    headerdf = statistics_dict[pressurecase][mechanism][header]
 
                     # For every header statistic (maximum, mean), create an empty list to append nested lists of data to
                     for key in scorekeys:
@@ -585,12 +586,14 @@ class AMROC1d:
 
                         # Try to determine the similarity score for time synchronised curves
                         try:
-                            similarityscore_dict[datacase][header][key][diluent] = find_similarityscores(
+                            similarityscore_dict[pressurecase][header][key][diluent] = find_similarityscores(
                                 headerstats_dict[header][key][diluent])
                         # If a TypeError was encountered, it's most likely because some elements from txt files read nan
                         except TypeError:
-                            pathstring = f"...\\{datacase}\\{mechanism}"
-                            raise TypeError(f"Could not find similarity score, check data integrity in '{pathstring}'.")
+                            raise TypeError(f"Could not find similarity score, check data integrity in '{pressurecase}'"
+                                            f". This can happen if two versions of a mechanism are downloaded to the"
+                                            f" same folder, and have conflicting timestamp data as a result. Double"
+                                            f" check that all folders in the directory have the expected file counts.")
 
         return similarityscore_dict
 
@@ -737,7 +740,7 @@ class AMROC1d:
         # For each mechanism
         for mechanism in mechanisms:
 
-            # Check if the mechanism was in the datacase, and if it was, append to the refactored dictionary
+            # Check if the header was in the datacase, and if it was, append to the refactored dictionary
             for datacase in self._getsortedcataloguekeys(cataloguekeyslist=list(self.volatilecatalogue.keys())):
                 if mechanism in detonationcheck_dict[datacase].keys():
                     mechanismdetonation_dict[mechanism][datacase] = detonationcheck_dict[datacase][mechanism]
@@ -750,11 +753,12 @@ class AMROC1d:
         # For each mechanism
         for mechanism in mechanisms:
 
-            # For each datacase contained within the mechanism
-            datacases = list(set(mechanismdetonation_dict[mechanism].keys()))
-            datacases_parts = sorted([datacasename.split("_") for datacasename in datacases], key=lambda x: int(x[0]))
+            # For each datacase contained within the header
+            pressurecases = list(set(mechanismdetonation_dict[mechanism].keys()))
+            datacases_parts = sorted([datacasename.split("_") for datacasename in pressurecases],
+                                     key=lambda x: int(x[0]))
 
-            # Find the set of diluents that were at any point used with the mechanism being investigated
+            # Find the set of diluent moles that were at any point used with the header being investigated
             diluentslist = sorted(list({int(sublist[2]) for sublist in datacases_parts}))
 
             # For data folder structure 'kpa_kpa_n_data', produce an ordered set of 'kpa_kpa' "roots"
@@ -762,28 +766,28 @@ class AMROC1d:
             kpa_kpa = ["_".join(x) for x in
                        sorted([p.split("_") for p in kpa_kpa], key=lambda x: (int(x[0]), int(x[1])))]
 
-            # Build a pandas data frame with these headers
+            # Build a pandas data frame with these mechanisms
             rows = [["driver_driven"] + diluentslist]
 
-            # For the available pressure cases in the given mechanism add the detonation booleans to the dataframe data
-            for pressurecase in kpa_kpa:
+            # For the available pressure cases in the given header add the detonation booleans to the dataframe data
+            for pressurecaseroot in kpa_kpa:
 
                 # Initialise an empty data row to be appended to 'rows' later
                 datarow = []
 
                 # Produce a list of datacase names, not all of which are valid (missing data for missing diluent cases)
                 for diluentmole in diluentslist:
-                    datacase_tocheck = "_".join([pressurecase, str(diluentmole), "data"])
+                    pressurecase_tocheck = "_".join([pressurecaseroot, str(diluentmole), "data"])
 
                     # If the data folder exists for the given diluent quantity, append the detonation check boolean
-                    if datacase_tocheck in datacases:
-                        datarow.append(mechanismdetonation_dict[mechanism][datacase_tocheck])
+                    if pressurecase_tocheck in pressurecases:
+                        datarow.append(mechanismdetonation_dict[mechanism][pressurecase_tocheck])
                     # If the data folder did not exist, append a "not applicable" empty value placeholder
                     else:
                         datarow.append("n/a")
 
                 # Finally, the pressure case tested, along with all the diluent moles tested, is appended to 'rows'.
-                rows.append([pressurecase] + datarow)
+                rows.append([pressurecaseroot] + datarow)
 
             # Generate the pandas dataframes and store into excel sheets
             df = pd.DataFrame(rows[1:], columns=rows[0])
@@ -915,7 +919,7 @@ class AMROC1d:
 
         return pk, tk, xk, initialconditions_idx
 
-    def export_kernelreport(self):
+    def export_similarityreport(self):
 
         # The report generator is dependent on a module not required by the rest of the code
         try:
@@ -923,20 +927,127 @@ class AMROC1d:
         except ImportError:
             raise ImportError("Could not create report, ensure module 'openpyxl' is installed!")
 
+        # Preamble
+        volcat = self.volatilecatalogue
+        simscores_dict = self._getsimilarityscores()
+        headers = self._getcommonheaders()
+        scorekeys = ["maximum", "mean"]
+
+        # Inform the user task is beginning
+        print(f"{_gettimestr()} Exporting similarity report...")
+
+        # If the output directory being exported doesn't exist, make it
+        outputdir_path = os.path.join(self.output_path, "reports")
+        if not os.path.exists(outputdir_path):
+            os.makedirs(outputdir_path)
+
+        # For all the mechanisms in the detonationcheck_dict, find the set of molecular diluents present
+        diluentmolecules = list({j.split("_")[0] for i in volcat.values() for j in i})
+
+        # Create a new dictionary with the intention of storing similarity by the diluent molecule used
+        diluentsimilarity_dict = dict(zip(diluentmolecules, [{} for _ in diluentmolecules]))
+
+        # Step 1: Refactor the detonation boolean dictionary by diluent used
+        # For each unique molecule of diluent
+        for diluentmolecule in diluentmolecules:
+
+            # For each pressure case available
+            for pressurecase in self._getsortedcataloguekeys(cataloguekeyslist=list(volcat.keys())):
+
+                # What are the mechanisms available to the pressure case, and is the diluent molecule present?
+                mechanisms = [mech for mech in volcat[pressurecase].keys() if diluentmolecule in mech]
+
+                # If at least one mechanism exists with the pressure case/molecular diluent combination
+                if len(mechanisms) > 0:
+
+                    # Create a new dictionary entry for the discovered diluent
+                    diluentsimilarity_dict[diluentmolecule][pressurecase] = {}
+
+                    # For every header in the pressure and diluent molecule case, refactor max/mean values to new dict
+                    for header in headers:
+                        diluentsimilarity_dict[diluentmolecule][pressurecase][header] = {}
+                        for scorekey in scorekeys:
+                            diluentsimilarity_dict[diluentmolecule][pressurecase][header][scorekey] = \
+                                st.fmean(simscores_dict[pressurecase][header][scorekey][diluentmolecule])
+
+        # Step 2: For each mechanism, export a file containing the similarity scores
+        outputfile_name = f"similarities_{_getdatetimestr()}.xlsx"
+        outputfile_path = os.path.join(outputdir_path, outputfile_name)
+        writer = pd.ExcelWriter(outputfile_path, engine='openpyxl')
+
+        # For each diluent molecule, and the score key (max or mean) within
+        for diluentmolecule in diluentmolecules:
+            for scorekey in scorekeys:
+
+                # Find the list of available pressure cases, and sort in numerical order
+                pressurecases = list(diluentsimilarity_dict[diluentmolecule].keys())
+                pressurecases_parts = sorted([datacasename.split("_") for datacasename in pressurecases],
+                                             key=lambda x: int(x[0]))
+
+                # Find the set of diluent moles that were at any point used with the header being investigated
+                diluentslist = sorted(list({int(sublist[2]) for sublist in pressurecases_parts}))
+
+                # For data folder structure 'kpa_kpa_n_data', produce an ordered set of 'kpa_kpa' "roots"
+                kpa_kpa = list({"_".join(sublist[0:2]) for sublist in pressurecases_parts})
+                kpa_kpa = ["_".join(x) for x in
+                           sorted([p.split("_") for p in kpa_kpa], key=lambda x: (int(x[0]), int(x[1])))]
+
+                # Build a pandas data frame with these headers
+                rows = [["driver_driven"] + diluentslist]
+
+                # For the available pressure cases in the given header add the detonation booleans to the dataframe data
+                for pressurecaseroot in kpa_kpa:
+
+                    # Initialise an empty data row to be appended to 'rows' later
+                    datarow = []
+
+                    # Produce a list of datacase names, not all of which are valid (missing data for missing dil cases)
+                    for diluentmole in diluentslist:
+                        pressurecase_tocheck = "_".join([pressurecaseroot, str(diluentmole), "data"])
+
+                        # If the pressure case exists
+                        if pressurecase_tocheck in pressurecases:
+
+                            # If any mechanisms are contained in the checked pressure case with the diluent molecule
+                            mechanisms = [x for x in volcat[pressurecase_tocheck].keys() if diluentmolecule in x]
+                            if len(mechanisms) > 0:
+
+                                # Return a similarity score based on pressure and temperature
+                                tempscore = []
+                                for header in headers:
+                                    if header in ["Pressure", "Temperature"]:
+                                        tempscore.append(
+                                            diluentsimilarity_dict[diluentmolecule][pressurecase_tocheck][header][
+                                                scorekey])
+                                # If the score was 1, it was likely the mechanism is alone and isn't similar to anything
+                                datarow.append(st.fmean(tempscore) if st.fmean(tempscore) != 1 else "n/a")
+                            else:
+                                datarow.append("n/a")
+                        # If the data folder did not exist, append a "not applicable" empty value placeholder
+                        else:
+                            datarow.append("n/a")
+
+                    # Finally, the pressure case tested, along with all the diluent moles tested, is appended to 'rows'.
+                    rows.append([pressurecaseroot] + datarow)
+
+                # Generate the pandas dataframes and store into excel sheets
+                df = pd.DataFrame(rows[1:], columns=rows[0])
+                df.to_excel(writer, index=False, engine="openpyxl", sheet_name=f"{diluentmolecule}_{scorekey}")
+
+        # Save excel worksheet and write-out
+        writer.save()
+        print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
+
 
 if __name__ == "__main__":
     test1d = AMROC1d()
 
-    moles = [2]
-    for mole in moles:
-        test1d.case_read(pressurestudy=f"50_10_{mole}_data")
-        # test1d.case_read(pressurestudy=f"90_50_{mole}_data")
+    # moles = [0, 2, 4]
+    # for mole in moles:
+    #     test1d.case_read(pressurestudy=f"50_10_{mole}_data")
+    #     test1d.case_read(pressurestudy=f"90_50_{mole}_data")
 
-    # for testcase in test1d.datacatalogue:
-    #     test1d.case_read(pressurestudy=testcase)
+    for testcase in test1d.datacatalogue:
+        test1d.case_read(pressurestudy=testcase)
 
-    # test1d.export_statistics()
-    # test1d.export_detonationreport()
-    # test1d.plot_mechanisms(colourseed=True)
-
-    print(test1d.case_kernelconditions("50_10_2_data", "N2_C2H4_Jachi"))
+    test1d.export_similarityreport()
