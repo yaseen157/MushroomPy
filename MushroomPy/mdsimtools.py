@@ -956,15 +956,17 @@ class AMROC1d:
 
             # If the value is a float, it can be colour mapped
             if type(val) == float:
-                # Clamp the input similarity score to a colour range 30% of the map
-                cmap_idx = np.interp(val, [0.95, 1], [0.7, 1])
+                # Clamp the input similarity score to a smaller range of the map
+                cmap_idx = np.interp(val, [0.90, 0.97], [0.6, 1])
                 r, g, b, a = cmap(cmap_idx)
                 colour = f"#{int(255 * r):02x}{int(255 * g):02x}{int(255 * b):02x}"
 
-                # Return the cell highlight colour
-                return f"background-color: {colour}"
+            elif val == "n/a":
+                colour = '#E6E6FA'  # CSS lavender
             else:
                 return ""
+
+            return f"background-color: {colour}"
 
         # Step 1: Refactor the detonation boolean dictionary by diluent used
         # For each unique molecule of diluent
