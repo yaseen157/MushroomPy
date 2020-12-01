@@ -346,7 +346,7 @@ class AMROC1d:
 
         return
 
-    def plot_mechanisms(self, colourseed=None):
+    def export_timeplots(self, colourseed=None):
 
         # Preamble, before user is notified task is running
         volcat = self.volatilecatalogue
@@ -1072,4 +1072,7 @@ if __name__ == "__main__":
     for testcase in test1d.datacatalogue:
         test1d.case_read(pressurestudy=testcase)
 
+    test1d.export_detonationreport()
     test1d.export_similarityreport()
+    test1d.export_statistics()
+    test1d.export_timeplots(colourseed=True)
