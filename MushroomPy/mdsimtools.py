@@ -86,8 +86,7 @@ class AMROC1d:
     Where the root directory contains this module (root/mdsimtools.py), simulation text files should be stored here:
         root/1D_AMROC_data/<driver_kpa>_<driven_kpa>_<moldiluent-unitymolesfuel_ratio>/<diluent>_<mechanism>/dat_xxx.txt
     For example, 'root/1D_AMROC_data/50_10_2_data/Ar_C2H4_Jachi/dat_134.txt'.
-
-     """
+    """
 
     def __init__(self):
         # Where is this Python tools file located?
@@ -263,7 +262,6 @@ class AMROC1d:
                     # Initialise parameters to build a pandas dataframe to track the combustion front
                     combustiontracker = [["time (s)", "x"]]
                     _, _, q, _ = self.case_initialconditions(pressurestudy=datacase, mechanism=mechanism)
-                    flamefront_idx = 0
 
                     # For each header
                     for header in headers:
@@ -496,7 +494,7 @@ class AMROC1d:
         by mechanism_n, we seek a performance metric that allows for the simple evaluation of mechanism agreement. The
         similarity comparison can only happen if the number of elements in x1 is equal to curves up to xn.
 
-        A similarity score S for the curve (x1, y1) at a *particular* value of x (x') can be computed as follows:
+        A similarity score S for the curve (x1, y1) at a *particular* value of x (denoted x') can be computed with:
         mu' = average(y'1 ... y'n)
         S' = 1 / exp(absolutevalue((y'1 / mu') - 1))
 
@@ -948,6 +946,13 @@ class AMROC1d:
         # Create a new dictionary with the intention of storing similarity by the diluent molecule used
         diluentsimilarity_dict = dict(zip(diluentmolecules, [{} for _ in diluentmolecules]))
 
+        # Define the colour mapping threshold for when the excel report should use high contrast text
+        clrmap_inputclamp = [np.exp(-0.075), np.exp(-0.025)]
+        clrmap_outputclamp = [0.3, 1]
+        highcontrasttxt_threshold = (0.95 - clrmap_inputclamp[0]) / (clrmap_inputclamp[1] - clrmap_inputclamp[0])
+        highcontrasttxt_threshold *= (clrmap_outputclamp[1] - clrmap_outputclamp[0])
+        highcontrasttxt_threshold += clrmap_outputclamp[0]
+
         # Define a function the export engine will use to colour code the results
         def highlight_vals(val):
 
@@ -957,7 +962,7 @@ class AMROC1d:
             # If the value is a float, it can be colour mapped
             if type(val) == float:
                 # Clamp the input similarity score to a smaller range of the map
-                cmap_idx = np.interp(val, [0.90, 0.97], [0.6, 1])
+                cmap_idx = np.interp(val, clrmap_inputclamp, clrmap_outputclamp)
                 r, g, b, a = cmap(cmap_idx)
                 colour = f"#{int(255 * r):02x}{int(255 * g):02x}{int(255 * b):02x}"
 
@@ -967,6 +972,24 @@ class AMROC1d:
                 return ""
 
             return f"background-color: {colour}"
+
+        def colour_vals(val):
+
+            # If the value is a float, it can be colour mapped
+            if type(val) == float:
+                # Clamp the input similarity score to a smaller range of the map
+                cmap_idx = np.interp(val, clrmap_inputclamp, clrmap_outputclamp)
+                if cmap_idx <= highcontrasttxt_threshold:
+                    colour = "#F5FFFA"  # CSS mintcream
+                else:
+                    colour = "#000000"  # CSS black
+
+            elif val == "n/a":
+                colour = "#000000"  # CSS black
+            else:
+                return ""
+
+            return f"color: {colour}"
 
         # Step 1: Refactor the detonation boolean dictionary by diluent used
         # For each unique molecule of diluent
@@ -1053,8 +1076,11 @@ class AMROC1d:
 
                 # Generate the pandas dataframes and store into excel sheets
                 df = pd.DataFrame(rows[1:], columns=rows[0])
-                df.style.applymap(highlight_vals).to_excel(writer, index=False, engine="openpyxl",
-                                                           sheet_name=f"{diluentmolecule}_{scorekey}")
+                sheetname = f"{diluentmolecule}_{scorekey}"
+                df.style. \
+                    applymap(colour_vals). \
+                    applymap(highlight_vals). \
+                    to_excel(writer, index=False, engine="openpyxl", sheet_name=sheetname)
 
         # Save excel worksheet and write-out
         writer.save()
@@ -1064,15 +1090,12 @@ class AMROC1d:
 if __name__ == "__main__":
     test1d = AMROC1d()
 
-    # moles = [0, 2, 4]
-    # for mole in moles:
-    #     test1d.case_read(pressurestudy=f"50_10_{mole}_data")
-    #     test1d.case_read(pressurestudy=f"90_50_{mole}_data")
-
     for testcase in test1d.datacatalogue:
         test1d.case_read(pressurestudy=testcase)
 
-    test1d.export_detonationreport()
+    # test1d.export_detonationreport()
     test1d.export_similarityreport()
-    test1d.export_statistics()
-    test1d.export_timeplots(colourseed=True)
+    # test1d.export_statistics()
+    # test1d.export_timeplots(colourseed=True)
+
+    pass
