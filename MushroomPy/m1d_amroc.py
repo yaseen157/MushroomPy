@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+MushroomPy Module
+
+Generate plots and output files for csv data as produced by the following program(s):
+VTF > AMROC > Clawpack > Euler Chemistry > 1D > Detonation Tube
+
+Updated December 2020
+Tested with:
+    Python 3.8, Windows 10
+
+Author Email: yr3g17@soton.ac.uk
+"""
+
 __author__ = "Yaseen Reza"
 
 import copy
@@ -15,10 +31,8 @@ import numpy as np
 import pandas as pd
 from matplotlib import cm
 from matplotlib import pyplot as plt
-from sdtoolbox.postshock import CJspeed, PostShock_fr, PostShock_eq
 
-
-# Email: yr3g17@soton.ac.uk
+from m0d_sdt import ShockDetonationToolbox as sdt
 
 
 def _gettimestr():
@@ -42,48 +56,12 @@ def _getdatetimestr():
     return f"{str(date)}_{hour:02}-{minute:02}-{second:02}"
 
 
-class SDT0d:
-    """**Zero-dimensional** detonation analysis tool, using methods from the **Shock & Detonation Toolbox**."""
-
-    def __init__(self, p_initial, t_initial, q_initial):
-        self.P1 = p_initial
-        self.T1 = t_initial
-        self.q = q_initial
-        self.mech = 'gri30_highT.cti'
-
-    def calc_cjspeed(self):
-        # Calculation for the Chapman-Jouget speeds
-        cj_speed_mps = CJspeed(P1=self.P1, T1=self.T1, q=self.q, mech=self.mech, fullOutput=False)
-
-        return cj_speed_mps
-
-    def calc_cjpressure(self):
-        # Calculation for the Chapman-Jouget speeds
-        cj_speed_mps = self.calc_cjspeed()
-
-        # Post shock (equilibrium) pressure to be determined
-        gascj = PostShock_eq(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
-        cj_pressure_pa = gascj.P
-
-        return cj_pressure_pa
-
-    def calc_vnpressure(self):
-        # Calculation for the Chapman-Jouget speeds
-        cj_speed_mps = self.calc_cjspeed()
-
-        # Post shock (frozen) pressure to be determined
-        gasvn = PostShock_fr(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
-        vn_pressure_pa = gasvn.P
-
-        return vn_pressure_pa
-
-
-class AMROC1d:
+class DetonationTube:
     """**One-dimensional** detonation analysis tool, intended for use with simulation data from the virtual test
     facility (VTF) '../amroc/clawpack/applications/euler_chem/1d/DetonationTube'. This class is designed for use with a
     fuel:oxidiser:monodiluent setup.
 
-    Where the root directory contains this module (root/mdsimtools.py), simulation text files should be stored here:
+    Where the root directory contains this module (root/m1d_amroc.py), simulation text files should be stored here:
         root/1D_AMROC_data/<driver_kpa>_<driven_kpa>_<moldiluent-unitymolesfuel_ratio>/<diluent>_<mechanism>/dat_xxx.txt
     For example, 'root/1D_AMROC_data/50_10_2_data/Ar_C2H4_Jachi/dat_134.txt'.
     """
@@ -144,6 +122,24 @@ class AMROC1d:
         self.statistics = {}
 
     def case_read(self, pressurestudy):
+        """Use this method to add pressure cases from a list of cases to be considered.
+
+        **Parameters:**
+
+        pressurestudy
+            string, the folder name for a pressure case to be added.
+
+        **Example:**
+        ::
+
+            study1 = DetonationTube()
+            study1.case_read(pressurestudy="100_100_0_data")
+
+        Output:
+        ::
+
+            [10:46:16.814] Reading case '100_100_0_data'...
+        """
 
         # Is the folder name valid? Proceed if the folder can be found in the catalogue
         if pressurestudy in self.datacatalogue.keys():
@@ -185,6 +181,22 @@ class AMROC1d:
             warnings.warn(warnmsg)
 
     def case_remove(self, pressurestudy):
+        """Use this method to remove pressure cases from a list of cases to be considered.
+
+        **Parameters:**
+
+        pressurestudy
+            string, the folder name for a pressure case to be removed.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_remove(pressurestudy="100_100_0_data")
+
+        Output:
+        ::
+            [10:50:19.302] Removing data case '100_100_0_data'...
+        """
 
         # Inform the user task is beginning
         print(f"{_gettimestr()} Removing data case '{pressurestudy}'...")
@@ -199,6 +211,32 @@ class AMROC1d:
             warnings.warn(warnmsg)
 
     def data_headerscatalogue(self):
+        """Use this method to return a dictionary of all available data headers, from the list of pressure cases to be
+        considered.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            print(json.dumps(test1d.data_headerscatalogue(), indent=4))
+
+        Output:
+        ::
+            [11:00:43.833] Reading case '100_100_0_data'...
+            {
+                "100_100_0_data": {
+                    "Ar_C2H4_Jachi": [
+                        "x",
+                        "Density",
+                        ...,
+                        "Y_09-O",
+                        "Levels",
+                        "Distribution"
+                    ]
+                }
+            }
+        """
 
         # Preamble
         volcat = self.volatilecatalogue
@@ -221,6 +259,29 @@ class AMROC1d:
         return headers_dict
 
     def data_statistics(self):
+        """Use this method to return a dictionary of all available data headers, from the list of pressure cases to be
+        considered.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            print("Density:\n", study1.data_statistics()["100_100_0_data"]["Ar_C2H4_Jachi"]["Density"])
+
+        Output:
+        ::
+            [11:22:20.158] Reading case '100_100_0_data'...
+            [11:22:22.988] Generating statistics...
+            [11:22:22.988] ...for case 1/1 | '100_100_0_data'
+            [11:22:23.918] (Generated statistics in 0.9 s)
+            Density:
+                 time (s)  maximum      mean   minimum
+            0     0.0000  2.23810  1.266557  1.251740
+            1     0.0001  1.93738  1.267276  0.863020
+            ...   ...     ...      ...       ...
+            50    0.0050  1.58757  1.263618  0.953821
+        """
 
         # Preamble, before user is notified task is running
         volcat = self.volatilecatalogue
@@ -305,6 +366,25 @@ class AMROC1d:
         return self.statistics
 
     def export_statistics(self):
+        """Use this method to export a statistics csv for all available data headers, from the list of pressure cases
+        to be considered.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            study1.export_statistics()
+
+        Output:
+        ::
+            [11:26:18.374] Reading case '100_100_0_data'...
+            [11:26:21.121] Generating statistics...
+            [11:26:21.121] ...for case 1/1 | '100_100_0_data'
+            [11:26:22.007] (Generated statistics in 0.9 s)
+            [11:26:22.007] Exporting statistics...
+            [11:26:22.221] >> Exported 54 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\statsCSVs'.
+        """
 
         # Preamble, before user is notified task is running
         volcat = self.volatilecatalogue
@@ -344,7 +424,31 @@ class AMROC1d:
 
         return
 
-    def export_timeplots(self, colourseed=None):
+    def export_temporalplots(self, colourseed=True):
+        """Use this method to export a series of plots of maximum and average conditions against a time axis, for all
+        available data headers (not relating to species fractions) from the list of pressure cases to be considered.
+
+        **Parameters:**
+        colourseed
+            boolean, used to randomise the colour of the plots produced by this method. Optional, defaults to True.
+
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            study1.export_temporalplots()
+
+        Output:
+        ::
+            [11:33:53.599] Reading case '100_100_0_data'...
+            [11:33:56.593] Generating statistics...
+            [11:33:56.593] ...for case 1/1 | '100_100_0_data'
+            [11:33:57.691] (Generated statistics in 1.1 s)
+            [11:33:57.871] Plotting mechanism comparisons...
+            [11:34:04.851] >> Exported 18 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\statsPNGs'.
+        """
 
         # Preamble, before user is notified task is running
         volcat = self.volatilecatalogue
@@ -600,8 +704,32 @@ class AMROC1d:
         """Categorise the input data to determine the type of combustion taking place. There are two different checks
         available in this method.
 
-        Check 1: pressure, what is the average pressure rise in the tube? Used to check simulation health.
-        Check 2: flamefront, what is the speed of the combustion front? Differentiates between combustion types.
+        Check 1: Pressure, what is the average pressure rise in the tube? Used to check simulation health and nans.
+        Check 2: Flamefront, what is the speed of the combustion front? Differentiates between combustion types.
+
+        **Example:**
+        In this case, the user wishes to identify which mechanisms resulted in a detonation of the pressure case.
+
+        ::
+
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            print(json.dumps(study1.data_detonationcheck(), indent=4))
+
+        Output:
+        ::
+            [11:39:00.360] Reading case '100_100_0_data'...
+            [11:39:03.695] Generating statistics...
+            [11:39:03.695] ...for case 1/1 | '100_100_0_data'
+            [11:39:04.933] (Generated statistics in 1.2 s)
+            {
+                "100_100_0_data": {
+                    "Ar_C2H4_Jachi": true,
+                    "Ar_GRI_red2": true,
+                    "N2_C2H4_Jachi": true
+                }
+            }
         """
 
         # Preamble
@@ -691,6 +819,31 @@ class AMROC1d:
         return datadir_sorted
 
     def export_detonationreport(self):
+        """Use this method to export a report on the types of combustion taking place. There are two different checks
+        available in this method.
+
+        Check 1: Pressure, what is the average pressure rise in the tube? Used to check simulation health and nans.
+        Check 2: Flamefront, what is the speed of the combustion front? Differentiates between combustion types.
+
+        **Example:**
+        In this case, the user wishes to identify which mechanisms resulted in a detonation of the pressure case.
+
+        ::
+
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            study1.export_detonationreport()
+
+        Output:
+        ::
+            [11:44:36.066] Reading case '100_100_0_data'...
+            [11:44:41.996] Generating statistics...
+            [11:44:41.996] ...for case 1/1 | '100_100_0_data'
+            [11:44:43.137] (Generated statistics in 1.1 s)
+            [11:44:43.141] Exporting detonation report...
+            [11:44:43.816] >> Exported Report 'detonations_2020-12-06_11-44-43.xlsx' to 'D:\...\DetonationTube\reports'.
+        """
 
         # The report generator is dependent on a module not required by the rest of the code
         try:
@@ -797,6 +950,41 @@ class AMROC1d:
         print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
     def case_initialconditions(self, pressurestudy, mechanism):
+        """Use this method to return the initial conditions of the detonation initiation region.
+
+        **Parameters:**
+        pressurestudy
+            string, the folder name for a pressure case to be considered.
+
+        mechanism
+            string, the folder name for a mechanism unique to the pressure case being considered.
+
+        **Returns:**
+        p1
+            float, the pressure of the gas to be detonated (in Pascal).
+
+        t1
+            float, the temperature of the gas to be detonated (in Kelvin).
+
+        q
+            string, the composition by fraction of the gas mixture considered.
+
+        diluentmoles
+            float, the number of moles of diluent as a ratio to unity moles of combustion.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_read(pressurestudy="100_100_0_data")
+
+            p1, t1, q, n = study1.case_initialconditions(pressurestudy="100_100_0_data", mechanism="Ar_C2H4_Jachi")
+            print(f"Pressure: {p1} Pa, Temperature: {t1} K, Composition: {q}, Moles of Diluent Gas: {n}")
+
+        Output:
+        ::
+            [11:50:50.559] Reading case '100_100_0_data'...
+            Pressure: 100000.0 Pa, Temperature: 298.0 K, Composition: C2H4:0.25 O2:0.75, Moles of Diluent Gas: 0.0
+        """
 
         # Preamble
         volcat = self.volatilecatalogue
@@ -838,6 +1026,36 @@ class AMROC1d:
         return p1, t1, q, diluentmoles
 
     def data_vn2cjratio(self, fast=True):
+        """Use this method to return the ratio of von-Neumann spike pressure, to Chapman-Jouget pressure for the list
+        of pressure cases to be considered.
+
+        **Parameters:**
+        fast
+            boolean, if True then before engaging in a lengthy calculation to determine CJ speeds, this method will
+            attempt to use a semi-empirical estimator for vN/CJ ratio
+
+        **Returns:**
+        znd_pratio_dict
+            dictionary,
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_read(pressurestudy="100_100_0_data")
+
+            print(json.dumps(study1.data_vn2cjratio(fast=True), indent=4))
+
+        Output:
+        ::
+            [12:06:53.843] Reading case '100_100_0_data'...
+            {
+                "100_100_0_data": {
+                    "Ar_C2H4_Jachi": 1.9157431630896595,
+                    "Ar_GRI_red2": 1.9157431630896595,
+                    "N2_C2H4_Jachi": 1.9157431630896595
+                }
+            }
+        """
 
         # Preamble
         volcat = self.volatilecatalogue
@@ -881,7 +1099,7 @@ class AMROC1d:
                     # Calculate values from scratch (very slow!)
                 else:
                     # Set up an object of the Shock & Detonation Toolbox
-                    zerod_obj = SDT0d(p_initial=p1, t_initial=t1, q_initial=q)
+                    zerod_obj = sdt(p_initial=p1, t_initial=t1, q_initial=q)
 
                     # Find the pressure ratios (this takes a long time because CJ speed takes ages to calculate)
                     vncjratio = zerod_obj.calc_vnpressure() / zerod_obj.calc_cjpressure()
@@ -889,7 +1107,7 @@ class AMROC1d:
                 # Store the vncj ratio into the dictionary
                 znd_pratio_dict[datacase][mechanism] = vncjratio
 
-        # If a SDT0d object was created, destroy it
+        # If a sdt object was created, destroy it
         try:
             del zerod_obj
         except UnboundLocalError:
@@ -898,6 +1116,41 @@ class AMROC1d:
         return znd_pratio_dict
 
     def case_kernelconditions(self, pressurestudy, mechanism):
+        """Use this method to return the initial conditions of the detonation initiation region.
+
+        **Parameters:**
+        pressurestudy
+            string, the folder name for a pressure case to be considered.
+
+        mechanism
+            string, the folder name for a mechanism unique to the pressure case being considered.
+
+        **Returns:**
+        p1
+            float, the pressure of the gas to be detonated (in Pascal).
+
+        t1
+            float, the temperature of the gas to be detonated (in Kelvin).
+
+        q
+            string, the composition by fraction of the gas mixture considered.
+
+        diluentmoles
+            float, the number of moles of diluent as a ratio to unity moles of combustion.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_read(pressurestudy="100_100_0_data")
+
+            p1, t1, q, n = study1.case_initialconditions(pressurestudy="100_100_0_data", mechanism="Ar_C2H4_Jachi")
+            print(f"Pressure: {p1} Pa, Temperature: {t1} K, Composition: {q}, Moles of Diluent Gas: {n}")
+
+        Output:
+        ::
+            [11:50:50.559] Reading case '100_100_0_data'...
+            Pressure: 100000.0 Pa, Temperature: 298.0 K, Composition: C2H4:0.25 O2:0.75, Moles of Diluent Gas: 0.0
+        """
 
         # Preamble
         volcat = self.volatilecatalogue
@@ -919,6 +1172,24 @@ class AMROC1d:
         return pk, tk, xk, initialconditions_idx
 
     def export_similarityreport(self):
+        """Use this method to export "similarity score" csv files, from the list of pressure cases to be considered.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="100_100_0_data")
+
+            study1.export_similarityreport()
+
+        Output:
+        ::
+            [12:01:02.740] Reading case '100_100_0_data'...
+            [12:01:07.151] Generating statistics...
+            [12:01:07.151] ...for case 1/1 | '100_100_0_data'
+            [12:01:08.356] (Generated statistics in 1.2 s)
+            [12:01:08.577] Exporting similarity report...
+            [12:01:08.741] >> Exported Report 'similarities_2020-12-06_12-01-08.xlsx' to 'D:\...\reports'.
+        """
 
         # The report generator is dependent on a module not required by the rest of the code
         try:
@@ -1088,14 +1359,14 @@ class AMROC1d:
 
 
 if __name__ == "__main__":
-    test1d = AMROC1d()
+    study1 = DetonationTube()
 
-    for testcase in test1d.datacatalogue:
-        test1d.case_read(pressurestudy=testcase)
+    for testcase in study1.datacatalogue:
+        study1.case_read(pressurestudy=testcase)
 
-    # test1d.export_detonationreport()
-    test1d.export_similarityreport()
-    # test1d.export_statistics()
-    # test1d.export_timeplots(colourseed=True)
+    study1.export_detonationreport()
+    study1.export_similarityreport()
+    study1.export_statistics()
+    study1.export_temporalplots(colourseed=True)
 
     pass
