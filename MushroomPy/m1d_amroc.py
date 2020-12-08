@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import cm
 from matplotlib import pyplot as plt
+from scipy import interpolate
 
 from m0d_sdt import ShockDetonationToolbox as sdt
 
@@ -301,28 +302,28 @@ class DetonationTube:
         casecount_current = 0
         casecount_target = str(len(missingcases_set))
 
-        # For each datacase available in the volatile catalogue
-        for datacase in self._getsortedcataloguekeys(cataloguekeyslist=list(self.volatilecatalogue.keys())):
-            mechanisms = volcat[datacase].keys()
+        # For each pressurecase available in the volatile catalogue
+        for pressurecase in self._getsortedcataloguekeys(cataloguekeyslist=list(self.volatilecatalogue.keys())):
+            mechanisms = volcat[pressurecase].keys()
 
-            # The datacase only needs to be read if its missing from the statistics catalogue
-            if datacase in missingcases_set:
+            # The pressurecase only needs to be read if its missing from the statistics catalogue
+            if pressurecase in missingcases_set:
 
                 # Inform the user task is progressing
                 casecount_current += 1
                 casecount_str = format(casecount_current, "0" + str(len(casecount_target))) + "/" + casecount_target
-                print(f"{_gettimestr()} ...for case {casecount_str} | '{datacase}'")
+                print(f"{_gettimestr()} ...for case {casecount_str} | '{pressurecase}'")
 
                 # Flesh out the statistics dictionary with more branches
-                statistics_dict[datacase] = dict(zip(mechanisms, [{} for _ in range(len(mechanisms))]))
+                statistics_dict[pressurecase] = dict(zip(mechanisms, [{} for _ in range(len(mechanisms))]))
 
                 # For each mechanism in a data case, find the available headers that aren't position related
                 for mechanism in mechanisms:
-                    headers = [header for header in headers_dict[datacase][mechanism] if header != "x"]
+                    headers = [header for header in headers_dict[pressurecase][mechanism] if header != "x"]
 
                     # Initialise parameters to build a pandas dataframe to track the combustion front
                     combustiontracker = [["time (s)", "x"]]
-                    _, _, q, _ = self.case_initialconditions(pressurestudy=datacase, mechanism=mechanism)
+                    _, _, q, _ = self.case_initialconditions(pressurestudy=pressurecase, mechanism=mechanism)
 
                     # For each header
                     for header in headers:
@@ -331,8 +332,8 @@ class DetonationTube:
                         rows = [["time (s)", "maximum", "mean", "minimum"]]
 
                         # For every time step (This takes the longest)
-                        for txtfile in volcat[datacase][mechanism].keys():
-                            txtfiledata = volcat[datacase][mechanism][txtfile]
+                        for txtfile in volcat[pressurecase][mechanism].keys():
+                            txtfiledata = volcat[pressurecase][mechanism][txtfile]
                             # Read data from the volatile catalogue
                             timestamp, df = txtfiledata.values()
                             # Gather all the data from a header, and return statistical metadata
@@ -350,11 +351,11 @@ class DetonationTube:
 
                         # Generate and save the pandas dataframes for generic headers
                         tempdf = pd.DataFrame(rows[1:], columns=rows[0])
-                        statistics_dict[datacase][mechanism][header] = tempdf
+                        statistics_dict[pressurecase][mechanism][header] = tempdf
 
                     # Generate and save the pandas dataframes for the combustion front
                     tempdf = pd.DataFrame(combustiontracker[1:], columns=combustiontracker[0])
-                    statistics_dict[datacase][mechanism]["ReactionFront"] = tempdf
+                    statistics_dict[pressurecase][mechanism]["ReactionFront"] = tempdf
 
         # Update the class' statistics definition
         self.statistics = statistics_dict
@@ -383,7 +384,7 @@ class DetonationTube:
             [11:26:21.121] ...for case 1/1 | '100_100_0_data'
             [11:26:22.007] (Generated statistics in 0.9 s)
             [11:26:22.007] Exporting statistics...
-            [11:26:22.221] >> Exported 54 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\statsCSVs'.
+            [11:26:22.221] >> Exported 54 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\StatisticsCSVs'.
         """
 
         # Preamble, before user is notified task is running
@@ -395,7 +396,7 @@ class DetonationTube:
         print(f"{_gettimestr()} Exporting statistics...")
 
         # If the output directory being exported doesn't exist, make it
-        outputdir_path = os.path.join(self.output_path, "statsCSVs")
+        outputdir_path = os.path.join(self.output_path, "StatisticsCSVs")
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
@@ -447,7 +448,7 @@ class DetonationTube:
             [11:33:56.593] ...for case 1/1 | '100_100_0_data'
             [11:33:57.691] (Generated statistics in 1.1 s)
             [11:33:57.871] Plotting mechanism comparisons...
-            [11:34:04.851] >> Exported 18 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\statsPNGs'.
+            [11:34:04.851] >> Exported 18 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\StatisticsPlots'.
         """
 
         # Preamble, before user is notified task is running
@@ -459,7 +460,7 @@ class DetonationTube:
         print(f"{_gettimestr()} Plotting mechanism comparisons...")
 
         # If the output directory being exported doesn't exist, make it
-        outputdir_path = os.path.join(self.output_path, "statsPNGs")
+        outputdir_path = os.path.join(self.output_path, "StatisticsPlots")
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
@@ -842,7 +843,7 @@ class DetonationTube:
             [11:44:41.996] ...for case 1/1 | '100_100_0_data'
             [11:44:43.137] (Generated statistics in 1.1 s)
             [11:44:43.141] Exporting detonation report...
-            [11:44:43.816] >> Exported Report 'detonations_2020-12-06_11-44-43.xlsx' to 'D:\...\DetonationTube\reports'.
+            [11:44:43.816] >> Exported Report 'detonations_2020-12-06_11-44-43.xlsx' to 'D:\...\DetonationTube\Reports'.
         """
 
         # The report generator is dependent on a module not required by the rest of the code
@@ -858,7 +859,7 @@ class DetonationTube:
         print(f"{_gettimestr()} Exporting detonation report...")
 
         # If the output directory being exported doesn't exist, make it
-        outputdir_path = os.path.join(self.output_path, "reports")
+        outputdir_path = os.path.join(self.output_path, "Reports")
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
@@ -1188,7 +1189,7 @@ class DetonationTube:
             [12:01:07.151] ...for case 1/1 | '100_100_0_data'
             [12:01:08.356] (Generated statistics in 1.2 s)
             [12:01:08.577] Exporting similarity report...
-            [12:01:08.741] >> Exported Report 'similarities_2020-12-06_12-01-08.xlsx' to 'D:\...\reports'.
+            [12:01:08.741] >> Exported Report 'similarities_2020-12-06_12-01-08.xlsx' to 'D:\...\Reports'.
         """
 
         # The report generator is dependent on a module not required by the rest of the code
@@ -1207,7 +1208,7 @@ class DetonationTube:
         print(f"{_gettimestr()} Exporting similarity report...")
 
         # If the output directory being exported doesn't exist, make it
-        outputdir_path = os.path.join(self.output_path, "reports")
+        outputdir_path = os.path.join(self.output_path, "Reports")
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
 
@@ -1357,6 +1358,143 @@ class DetonationTube:
         writer.save()
         print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
+    def export_temporalpressures(self, pressurestudy, mechanism, waveforms=10):
+        """Use this method to export a series of temporal pressure waveforms suitable for FEA, for the given pressure
+        study and mechanism. Each waveform is described by a representative points, equidistant along the tube,
+        starting and finishing at the tube end-plates. These points describe the centre of the equisize FEA regions
+        they represent, with the notable exception of the first and last points describing regions of half the size due
+        to their position at the walls.
+
+        **Parameters:**
+        pressurestudy
+            string, the folder name for a pressure case to be considered.
+
+        mechanism
+            string, the folder name for a mechanism unique to the pressure case being considered.
+
+        waveforms
+            int, the number of waveforms to produce. Optional, defaults to 10.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_add(pressurestudy="60_20_8_data")
+
+            study1.export_temporalpressures(pressurestudy=case, mechanism="Ar_GRI_red2", waveforms=27)
+
+        Output:
+        ::
+            [11:43:10.763] Reading case '60_20_8_data'...
+            [11:43:12.607] Generating statistics...
+            [11:43:12.607] ...for case 1/1 | '60_20_8_data'
+            [11:43:13.219] (Generated statistics in 0.6 s)
+            [11:43:13.219] Exporting Temporal Pressure Data...
+            [11:43:13.538] >> Exported 27 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\FEA\60_20_8_data'.
+        """
+        # Preamble
+        volcat = self.volatilecatalogue
+        mechanismdata = volcat[pressurestudy][mechanism]
+        reactionfrontdf = self.data_statistics()[pressurestudy][mechanism]["ReactionFront"]
+
+        # Inform the user task is beginning
+        print(f"{_gettimestr()} Exporting Temporal Pressure Data...")
+
+        # If the output directory being exported doesn't exist, make it
+        outputdir_path = os.path.join(self.output_path, "FEA", pressurestudy)
+        if not os.path.exists(outputdir_path):
+            os.makedirs(outputdir_path)
+        # Else the directory already exists, and so its contents must be cleared
+        else:
+            for root, dirs, files in os.walk(outputdir_path, topdown=False):
+                for name in files:
+                    os.remove(os.path.join(root, name))
+
+        # Track the progress of the method using a file-counting variable
+        filecount = 0
+
+        # Create a list of all data files for the mechanism
+        txtfiles = [key for key in mechanismdata.keys()]
+
+        xstart = []
+        xfinish = []
+
+        # What are the x positions at the centre of all the FEA regions to consider?
+        for txtfile in txtfiles:
+            xstart.append(list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"])[0])
+            xfinish.append(list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"])[-1])
+        xpositions_cm = np.linspace(start=max(xstart), stop=min(xfinish), num=waveforms)
+
+        # Create empty lists to store data that will turn into the desired CSVs
+        waveformtimestamps = []
+        waveformspressures = []
+
+        # Iterate through each data file
+        for txtfile in txtfiles:
+            # Using the volatile catalogue dataframe, find the pressure for every x position, and the timestamp
+            timestamp = mechanismdata[txtfile]["Time Elapsed"]
+            df = mechanismdata[txtfile]["DataframeObj"]
+            tubepositions = np.array(df["x"])
+            tubepressures = np.array(df["Pressure"])
+
+            # Using 1d interpolation, find the pressure values at hypothetical points described by number of waveforms
+            f = interpolate.interp1d(tubepositions, tubepressures)
+            interpolatedpressures = list(f(xpositions_cm))
+
+            # Append CSV data
+            waveformtimestamps.append(timestamp)
+            waveformspressures.append(interpolatedpressures)
+
+        # Using closest match, find the indices in the reaction front data frame where desired x, matches reaction front
+        reactionfront_matches = [
+            list(reactionfrontdf["x"]).index(min(reactionfrontdf["x"], key=lambda x: abs(x - xpos))) for xpos in
+            xpositions_cm]
+
+        # For every FEA region
+        for xp_idx in range(len(xpositions_cm)):
+            # Build a pandas data frame with these headers
+            rows = [["time (s)", "pressure"]]
+
+            # Build the rest of the data frame, adding times and pressures to the nested list
+            [rows.append([waveformtimestamps[ts_idx], waveformspressures[ts_idx][xp_idx]]) for ts_idx in
+             range(len(waveformtimestamps))]
+
+            # What is the index of the closest matching reaction front measurement?
+            reactionfront_idx = reactionfront_matches[xp_idx]
+
+            # For all the temporal pressure data in the FEA region considered
+            for row_idx in range(len(rows)):
+                # Whenever the timestamp is equal to the timestamp of the closest matching reaction front for the region
+                if rows[row_idx][0] == list(reactionfrontdf["time (s)"])[reactionfront_idx]:
+                    # If it's possible to take timestamp+1, take the maximum of the two timestamps and apply vN factor
+                    if row_idx + 1 in range(len(rows)):
+                        rows[row_idx] = [rows[row_idx][0], 2 * max(rows[row_idx][1], rows[row_idx + 1][1])]
+                    # Take the pressure at the timestamp, and apply vN factor
+                    else:
+                        rows[row_idx] = [rows[row_idx][0], 2 * rows[row_idx][1]]
+
+            # # For each timestamp
+            # for row in rows[1:]:
+            #     # If the detonation is making it's first propagation down the tube
+            #     if row[0] <= waveformtimestamps[wall_idx]:
+            #         rf_idx = list(reactionfrontdf["time (s)"]).index(row[0])
+            #         print(row, "X:", xpositions_cm[xp_idx], "RF:", list(reactionfrontdf["x"])[rf_idx])
+
+            # Convert the nested list into a dataframe
+            df = pd.DataFrame(rows[1:], columns=rows[0])
+
+            # Export the results
+            outputfile_name = f"waveform_{filecount:03}.csv"
+            outputfile_path = os.path.join(outputdir_path, outputfile_name)
+            df.to_csv(outputfile_path, index=False, header=True)
+
+            # Increment the file counter
+            filecount += 1
+
+        # Return the total number of counted files exported
+        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+
+        return
+
 
 if __name__ == "__main__":
     study1 = DetonationTube()
@@ -1368,5 +1506,4 @@ if __name__ == "__main__":
     study1.export_similarityreport()
     study1.export_statistics()
     study1.export_temporalplots(colourseed=True)
-
     pass
