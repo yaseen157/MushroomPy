@@ -1358,7 +1358,7 @@ class DetonationTube:
         writer.save()
         print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
-    def export_temporalpressures(self, pressurestudy, mechanism, waveforms=10):
+    def export_pressurefea(self, pressurestudy, mechanism, waveforms=10, vn=True):
         """Use this method to export a series of temporal pressure waveforms suitable for FEA, for the given pressure
         study and mechanism. Each waveform is described by a representative points, equidistant along the tube,
         starting and finishing at the tube end-plates. These points describe the centre of the equisize FEA regions
@@ -1375,6 +1375,10 @@ class DetonationTube:
         waveforms
             int, the number of waveforms to produce. Optional, defaults to 10.
 
+        vn
+            boolean, set to True or False for whether or not a semi-empirical von Neumann spike should be added to the
+            plot. Optional, defaults to True.
+
         **Example:**
         ::
             study1 = DetonationTube()
@@ -1389,7 +1393,7 @@ class DetonationTube:
             [11:43:12.607] ...for case 1/1 | '60_20_8_data'
             [11:43:13.219] (Generated statistics in 0.6 s)
             [11:43:13.219] Exporting Temporal Pressure Data...
-            [11:43:13.538] >> Exported 27 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\FEA\60_20_8_data'.
+            [11:43:13.538] >> Exported 27 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\FEAdata\60_20_8_data'.
         """
         # Preamble
         volcat = self.volatilecatalogue
@@ -1400,7 +1404,7 @@ class DetonationTube:
         print(f"{_gettimestr()} Exporting Temporal Pressure Data...")
 
         # If the output directory being exported doesn't exist, make it
-        outputdir_path = os.path.join(self.output_path, "FEA", pressurestudy)
+        outputdir_path = os.path.join(self.output_path, "FEAdata", pressurestudy)
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
         # Else the directory already exists, and so its contents must be cleared
@@ -1449,6 +1453,16 @@ class DetonationTube:
             list(reactionfrontdf["x"]).index(min(reactionfrontdf["x"], key=lambda x: abs(x - xpos))) for xpos in
             xpositions_cm]
 
+        # Figure preamble
+        fig = plt.figure(figsize=[8, 8], dpi=100)
+        ax = fig.add_axes([0.14, 0.12, 0.72, 0.8])  # left bottom width height
+        ax.grid(True)
+        ax.set_title(f"{pressurestudy} Pressure vs Time")
+        ax.set_xlabel("time (s)")
+        ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+        # Use a matplotlib colour map
+        cmap = cm.get_cmap("winter")
+
         # For every FEA region
         for xp_idx in range(len(xpositions_cm)):
             # Build a pandas data frame with these headers
@@ -1461,34 +1475,48 @@ class DetonationTube:
             # What is the index of the closest matching reaction front measurement?
             reactionfront_idx = reactionfront_matches[xp_idx]
 
-            # For all the temporal pressure data in the FEA region considered
-            for row_idx in range(len(rows)):
-                # Whenever the timestamp is equal to the timestamp of the closest matching reaction front for the region
-                if rows[row_idx][0] == list(reactionfrontdf["time (s)"])[reactionfront_idx]:
-                    # If it's possible to take timestamp+1, take the maximum of the two timestamps and apply vN factor
-                    if row_idx + 1 in range(len(rows)):
-                        rows[row_idx] = [rows[row_idx][0], 2 * max(rows[row_idx][1], rows[row_idx + 1][1])]
-                    # Take the pressure at the timestamp, and apply vN factor
-                    else:
-                        rows[row_idx] = [rows[row_idx][0], 2 * rows[row_idx][1]]
-
-            # # For each timestamp
-            # for row in rows[1:]:
-            #     # If the detonation is making it's first propagation down the tube
-            #     if row[0] <= waveformtimestamps[wall_idx]:
-            #         rf_idx = list(reactionfrontdf["time (s)"]).index(row[0])
-            #         print(row, "X:", xpositions_cm[xp_idx], "RF:", list(reactionfrontdf["x"])[rf_idx])
+            # If the user wants the von Neumann spike to be plotted
+            if vn is True:
+                # For all the temporal pressure data in the FEA region considered
+                for row_idx in range(len(rows)):
+                    # Whenever the timestamp == timestamp of the closest matching reaction front for the region
+                    if rows[row_idx][0] == list(reactionfrontdf["time (s)"])[reactionfront_idx]:
+                        # If timestamp+1 exists, take the maximum of the two timestamps and apply vN factor
+                        if row_idx + 1 in range(len(rows)):
+                            rows[row_idx] = [rows[row_idx][0], 2 * max(rows[row_idx][1], rows[row_idx + 1][1])]
 
             # Convert the nested list into a dataframe
             df = pd.DataFrame(rows[1:], columns=rows[0])
+
+            # Add temporal data to a combined output plot
+            fraction = xp_idx / len(xpositions_cm)
+            r, g, b, _ = cmap(fraction)
+            if xp_idx == 0:
+                ax.plot(list(df["time (s)"]), list(df["pressure"]), color=cmap(fraction), ls="-",
+                        label=f"Tube Start (x={xpositions_cm[0]} cm)")
+            elif xp_idx == len(xpositions_cm) - 1:
+                ax.plot(list(df["time (s)"]), list(df["pressure"]), color=cmap(fraction), ls="-",
+                        label=f"Tube End (x={xpositions_cm[-1]} cm)")
+            else:
+                ax.plot(list(df["time (s)"]), list(df["pressure"]), color=cmap(fraction), ls="-")
 
             # Export the results
             outputfile_name = f"waveform_{filecount:03}.csv"
             outputfile_path = os.path.join(outputdir_path, outputfile_name)
             df.to_csv(outputfile_path, index=False, header=True)
-
             # Increment the file counter
             filecount += 1
+
+        # Finish the plot with a legend
+        ax.legend(title=(f"{mechanism} with vN Spike" if vn is True else mechanism))
+
+        # Save the resulting figure
+        outputfile_name = f"waveforms.png"
+        outputfile_path = os.path.join(outputdir_path, outputfile_name)
+        plt.savefig(fname=outputfile_path)
+        plt.close('all')
+        # Increment the file counter
+        filecount += 1
 
         # Return the total number of counted files exported
         print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
