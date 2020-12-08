@@ -1481,9 +1481,17 @@ class DetonationTube:
                 for row_idx in range(len(rows)):
                     # Whenever the timestamp == timestamp of the closest matching reaction front for the region
                     if rows[row_idx][0] == list(reactionfrontdf["time (s)"])[reactionfront_idx]:
-                        # If timestamp+1 exists, take the maximum of the two timestamps and apply vN factor
+
+                        # If timestamp-1 exists, take the maximum of the two timestamps and apply vN factor
+                        if row_idx - 1 in range(len(rows)) and row_idx > 1:
+                            rows[row_idx - 1] = [rows[row_idx - 1][0], 2 * max(rows[row_idx][1], rows[row_idx - 1][1])]
+
+                        # Take the reaction front at the closest matching timestep for vN location, and apply vN factor
+                        rows[row_idx] = [rows[row_idx][0], 1.7 * rows[row_idx][1]]
+
+                        # If timestamp+1 exists apply vN factor
                         if row_idx + 1 in range(len(rows)):
-                            rows[row_idx] = [rows[row_idx][0], 2 * max(rows[row_idx][1], rows[row_idx + 1][1])]
+                            rows[row_idx + 1] = [rows[row_idx + 1][0], 1.4 * rows[row_idx + 1][1]]
 
             # Convert the nested list into a dataframe
             df = pd.DataFrame(rows[1:], columns=rows[0])
@@ -1534,4 +1542,5 @@ if __name__ == "__main__":
     study1.export_similarityreport()
     study1.export_statistics()
     study1.export_temporalplots(colourseed=True)
+
     pass
