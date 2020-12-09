@@ -1498,7 +1498,6 @@ class DetonationTube:
 
             # Add temporal data to a combined output plot
             fraction = xp_idx / len(xpositions_cm)
-            r, g, b, _ = cmap(fraction)
             if xp_idx == 0:
                 ax.plot(list(df["time (s)"]), list(df["pressure"]), color=cmap(fraction), ls="-",
                         label=f"Tube Start (x={xpositions_cm[0]} cm)")
