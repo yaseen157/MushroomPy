@@ -512,7 +512,8 @@ class DetonationTube:
                     ax = fig.add_axes([0.14, 0.12, 0.72, 0.8])  # left bottom width height
                     ax.grid(True)
                     ax.set_title(f'{header} (S1={simscore1:.4f}; S2={simscore2:.4f})')
-                    ax.set_xlabel("time (s)")
+                    ax.set_xlabel("Time (s)")
+                    ax.set_ylabel(header)
                     ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
                     # For each mechanism available in the data case, now try to create superimposed plots
@@ -1458,7 +1459,8 @@ class DetonationTube:
         ax = fig.add_axes([0.14, 0.12, 0.72, 0.8])  # left bottom width height
         ax.grid(True)
         ax.set_title(f"{pressurestudy} Pressure vs Time")
-        ax.set_xlabel("time (s)")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Pressure [Pa]")
         ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
         # Use a matplotlib colour map
         cmap = cm.get_cmap("winter")
@@ -1571,6 +1573,8 @@ class DetonationTube:
             statisticsdata = self.data_statistics()[pressurestudy][mechanism]
             headers = self.data_headerscatalogue()[pressurestudy][mechanism]
         else:
+            warnmsg = f"Could not find data for {mechanism} in {pressurestudy}, skipping raw plot."
+            warnings.warn(warnmsg)
             return
 
         # Check if the header even exists
@@ -1600,6 +1604,21 @@ class DetonationTube:
         colours_idx = np.linspace(0, 1, len(txtfiles))
         colours_list = [cmap(index) for index in list(colours_idx)]
 
+        x_roc = []
+        y_roc = []
+
+        def find_reactionfrontpeak(txt_file, x_estimate):
+            # Make a list of all the available x positions
+            available_x = list(volcat[pressurestudy][mechanism][txt_file]["DataframeObj"]["x"])
+            # Record the x position where the reaction front is as an index of the x positions in the full data txt file
+            # Also record the x position, if possible, around 5cm behind where the reaction front is determined to be
+            txt_xminus5idx = available_x.index(min(available_x, key=lambda x: abs(x - x_estimate + 5)))
+            txt_xidx = available_x.index(x_estimate)
+
+            # Find the peak y value in a small range around and behind where the reaction front is estimated to be
+            hdrdata = volcat[pressurestudy][mechanism][txt_file]["DataframeObj"][header]
+            return max([hdrdata[min(max(idx, 0), len(hdrdata) - 1)] for idx in range(txt_xminus5idx, txt_xidx + 1)])
+
         # Iterate over every time step
         for txtfile in txtfiles:
             # What duration of time has elapsed, and what is the data associated with this passage of time?
@@ -1618,26 +1637,58 @@ class DetonationTube:
             y = df[header]
             ax.plot(x, y, color=colours_list.pop(0))
 
-            # What are the x positions of the reaction front estimated to be?
+            # What is the x position of the reaction front estimated to be?
             txtfile_idx = txtfiles.index(txtfile)
             x_ann = statisticsdata["ReactionFront"]["x"][txtfile_idx]
+            # What is the peak y value of the header near the reaction front?
+            y_ann = find_reactionfrontpeak(txt_file=txtfile, x_estimate=x_ann)
 
-            # Since the txt files have more detailed meshes near the reaction front, look for the txtfile specific index
-            txt_xidx = list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"]).index(x_ann)
-            # Find the peak y value in a small range around where the reaction front is estimated to be located
-            headerdata = volcat[pressurestudy][mechanism][txtfile]["DataframeObj"][header]
-            y_ann = max([headerdata[min(max(txt_xidx + idx, 0), len(headerdata) - 1)] for idx in range(-20, 20)])
+            # If there is a text file for a previous timestamp, what is the percent change in y value from it?
+            if txtfile_idx > 0:
+                x_prev = statisticsdata["ReactionFront"]["x"][txtfile_idx - 1]
+                y_prev = find_reactionfrontpeak(txt_file=txtfiles[txtfile_idx - 1], x_estimate=x_prev)
+                dper = (y_ann - y_prev) / y_prev
+            else:
+                dper = 0
+            dper_str = f"{round(100 * dper, 2)}%"
+
+            # Record rate of change
+            x_roc.append(x_ann)
+            y_roc.append(dper * 100)
+
             # Annotate the raw plot
             plt.annotate(str(y_ann), xy=(x_ann, y_ann), xytext=(x_ann, y_ann + 0.05 * headermax), xycoords="data",
                          arrowprops={"arrowstyle": "->"})
+            plt.annotate(dper_str, xy=(x_ann, y_ann), xytext=(x_ann + 0.05 * list(df["x"])[-1], y_ann), xycoords="data")
 
             # Save the resulting figure
-            outputfile_name = "{0}.png".format(timestamp)
+            outputfile_name = f"{timestamp}.png"
             outputfile_path = os.path.join(outputdir_path, outputfile_name)
             plt.grid(True)
             plt.savefig(fname=outputfile_path)
             plt.close('all')
             filecount += 1
+
+        # Set up basic plotting parameters
+        fig = plt.figure(figsize=[9, 9], dpi=100)
+        ax = fig.add_axes([0.12, 0.12, 0.76, 0.80])  # left bottom width height
+        ax.set_title(f"{pressurestudy}\\{mechanism} {header} (Detonation Front RoC)")
+        ax.set_xlim(0, x_roc[-1])
+        ax.set_ylim(-30, 30)
+
+        # Plot the rate of change of the detonation front header value
+        ax.fill_between(x_roc, [-5] * len(x_roc), [5] * len(x_roc), alpha=0.3)
+        ax.plot(x_roc, y_roc, c=cmap(0))
+        ax.set_xlabel("Position [cm]")
+        ax.set_ylabel("Percent Change at Detonation Front [%]")
+
+        # Save the resulting figure
+        outputfile_name = "Rate of Change of Detonation Front.png"
+        outputfile_path = os.path.join(outputdir_path, outputfile_name)
+        plt.grid(True)
+        plt.savefig(fname=outputfile_path)
+        plt.close('all')
+        filecount += 1
 
         # End a timer and return the time taken for the statistics method to run
         finish = time.perf_counter()
@@ -1654,7 +1705,7 @@ if __name__ == "__main__":
 
     for testcase in study1.datacatalogue:
         study1.case_read(pressurestudy=testcase)
-
+    
     study1.export_detonationreport()
     study1.export_similarityreport()
     study1.export_statistics()
