@@ -1631,7 +1631,7 @@ class DetonationTube:
             plt.annotate(str(y_ann), xy=(x_ann, y_ann), xytext=(x_ann, y_ann + 0.05 * headermax), xycoords="data",
                          arrowprops={"arrowstyle": "->"})
 
-            # Save the resulting figure, and inform the user of progress
+            # Save the resulting figure
             outputfile_name = "{0}.png".format(timestamp)
             outputfile_path = os.path.join(outputdir_path, outputfile_name)
             plt.grid(True)
