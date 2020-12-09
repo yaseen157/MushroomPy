@@ -1680,7 +1680,7 @@ class DetonationTube:
         ax.fill_between(x_roc, [-5] * len(x_roc), [5] * len(x_roc), alpha=0.3)
         ax.plot(x_roc, y_roc, c=cmap(0))
         ax.set_xlabel("Position [cm]")
-        ax.set_ylabel("Percent Change at Detonation Front [%]")
+        ax.set_ylabel("Detonation Front Change [%]")
 
         # Save the resulting figure
         outputfile_name = "Rate of Change of Detonation Front.png"
