@@ -1567,6 +1567,15 @@ class DetonationTube:
         volcat = self.volatilecatalogue
         header = header.title()
 
+        # Check if the pressure case even exists
+        if pressurestudy in list(volcat.keys()):
+            pass
+        else:
+            warnmsg = f"Could not find data for {pressurestudy}, skipping raw plot. Maybe it wasn't added with " \
+                      f"'self.case_read()'?"
+            warnings.warn(warnmsg)
+            return
+
         # Check if the mechanism even exists
         if mechanism in list(volcat[pressurestudy].keys()):
             mechanismdata = volcat[pressurestudy][mechanism]
@@ -1677,13 +1686,14 @@ class DetonationTube:
         ax.set_ylim(-30, 30)
 
         # Plot the rate of change of the detonation front header value
-        ax.fill_between(x_roc, [-5] * len(x_roc), [5] * len(x_roc), alpha=0.3)
+        thresholdpercent = 5
+        ax.fill_between(x_roc, [-thresholdpercent] * len(x_roc), [thresholdpercent] * len(x_roc), alpha=0.3)
         ax.plot(x_roc, y_roc, c=cmap(0))
         ax.set_xlabel("Position [cm]")
         ax.set_ylabel("Detonation Front Change [%]")
 
         # Save the resulting figure
-        outputfile_name = "Rate of Change of Detonation Front.png"
+        outputfile_name = "Pressure+DF_RoC.png"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         plt.grid(True)
         plt.savefig(fname=outputfile_path)
