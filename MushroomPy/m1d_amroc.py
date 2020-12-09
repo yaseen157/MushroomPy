@@ -218,7 +218,7 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             print(json.dumps(test1d.data_headerscatalogue(), indent=4))
 
@@ -266,9 +266,9 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
-            print("Density:\n", study1.data_statistics()["100_100_0_data"]["Ar_C2H4_Jachi"]["Density"])
+            print("Density:\\n", study1.data_statistics()["100_100_0_data"]["Ar_C2H4_Jachi"]["Density"])
 
         Output:
         ::
@@ -373,7 +373,7 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             study1.export_statistics()
 
@@ -437,7 +437,7 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             study1.export_temporalplots()
 
@@ -714,7 +714,7 @@ class DetonationTube:
         ::
 
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             print(json.dumps(study1.data_detonationcheck(), indent=4))
 
@@ -832,7 +832,7 @@ class DetonationTube:
         ::
 
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             study1.export_detonationreport()
 
@@ -1178,7 +1178,7 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="100_100_0_data")
+            study1.case_read(pressurestudy="100_100_0_data")
 
             study1.export_similarityreport()
 
@@ -1382,7 +1382,7 @@ class DetonationTube:
         **Example:**
         ::
             study1 = DetonationTube()
-            study1.case_add(pressurestudy="60_20_8_data")
+            study1.case_read(pressurestudy="60_20_8_data")
 
             study1.export_temporalpressures(pressurestudy=case, mechanism="Ar_GRI_red2", waveforms=27)
 
@@ -1487,11 +1487,11 @@ class DetonationTube:
                             rows[row_idx - 1] = [rows[row_idx - 1][0], 2 * max(rows[row_idx][1], rows[row_idx - 1][1])]
 
                         # Take the reaction front at the closest matching timestep for vN location, and apply vN factor
-                        rows[row_idx] = [rows[row_idx][0], 1.7 * rows[row_idx][1]]
+                        rows[row_idx] = [rows[row_idx][0], 1.3 * rows[row_idx][1]]
 
                         # If timestamp+1 exists apply vN factor
                         if row_idx + 1 in range(len(rows)):
-                            rows[row_idx + 1] = [rows[row_idx + 1][0], 1.4 * rows[row_idx + 1][1]]
+                            rows[row_idx + 1] = [rows[row_idx + 1][0], 1.15 * rows[row_idx + 1][1]]
 
             # Convert the nested list into a dataframe
             df = pd.DataFrame(rows[1:], columns=rows[0])
@@ -1525,6 +1525,124 @@ class DetonationTube:
         plt.close('all')
         # Increment the file counter
         filecount += 1
+
+        # Return the total number of counted files exported
+        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+
+        return
+
+    def export_rawdataplots(self, pressurestudy, mechanism, header):
+        """Use this method to export the raw data plots for a given pressure case, mechanism, and header.
+
+        **Parameters:**
+        pressurestudy
+            string, the folder name for a pressure case to be considered.
+
+        mechanism
+            string, the folder name for a mechanism unique to the pressure case being considered.
+
+        header
+            string, the name of the header to be plotted.
+
+        **Example:**
+        ::
+            study1 = DetonationTube()
+            study1.case_read(pressurestudy="100_100_0_data")
+
+            study1.export_rawdataplots("100_100_0_data", "Ar_C2H4_Jachi", "Pressure")
+
+        Output:
+        ::
+            [10:16:59.211] Reading case '100_100_0_data'...
+            [10:17:01.950] Generating statistics...
+            [10:17:01.950] ...for case 1/1 | '100_100_0_data'
+            [10:17:02.820] (Generated statistics in 0.9 s)
+            [10:17:02.820] Plotting raw 'Pressure' data for '100_100_0_data\\Ar_C2H4_Jachi'...
+            [10:17:17.871] (Plotted files in 15.1 s)
+            [10:17:17.871] >> Exported 51 file(s) to 'D:\...\RawdataPlots\100_100_0_data\Ar_C2H4_Jachi\Pressure'.
+        """
+
+        # Preamble, before user is notified task is running
+        volcat = self.volatilecatalogue
+        header = header.title()
+
+        # Check if the mechanism even exists
+        if mechanism in list(volcat[pressurestudy].keys()):
+            mechanismdata = volcat[pressurestudy][mechanism]
+            statisticsdata = self.data_statistics()[pressurestudy][mechanism]
+            headers = self.data_headerscatalogue()[pressurestudy][mechanism]
+        else:
+            return
+
+        # Check if the header even exists
+        if header in headers:
+            # Inform the user task has proceeded
+            print(f"{_gettimestr()} Plotting raw '{header}' data for '{pressurestudy}\\{mechanism}'...")
+            start = time.perf_counter()
+        else:
+            # Raise an error if the header could not be found in a list of available headers.
+            raise KeyError(f"Header '{header}' was not found in list of valid headers. Use "
+                           f"'self.data_headerscatalogue()' to learn of available headers.")
+
+        # What is the maximum value of the header?
+        headermax = max(list(statisticsdata[header]["maximum"]))
+
+        # If the output directory being exported doesn't exist, make it
+        outputdir_path = os.path.join(self.output_path, "RawdataPlots", pressurestudy, mechanism, header)
+        if not os.path.exists(outputdir_path):
+            os.makedirs(outputdir_path)
+
+        # What are the total number of files expected to be processed?
+        txtfiles = [key for key in mechanismdata.keys()]
+        filecount = 0
+
+        # Setup colour mapping
+        cmap = cm.get_cmap("winter")
+        colours_idx = np.linspace(0, 1, len(txtfiles))
+        colours_list = [cmap(index) for index in list(colours_idx)]
+
+        # Iterate over every time step
+        for txtfile in txtfiles:
+            # What duration of time has elapsed, and what is the data associated with this passage of time?
+            timestamp = format(mechanismdata[txtfile]["Time Elapsed"], '.6f')
+            df = mechanismdata[txtfile]["DataframeObj"]
+
+            # Set up basic plotting parameters
+            fig = plt.figure(figsize=[9, 9], dpi=100)
+            ax = fig.add_axes([0.12, 0.12, 0.76, 0.80])  # left bottom width height
+            ax.set_title(f"{pressurestudy}\\{mechanism} {header} ({format(1000 * float(timestamp), '.3f')} ms)")
+            ax.set_xlim(0, round(list(df["x"])[-1], 0))
+            ax.set_ylim(0, 1.1 * headermax)
+
+            # Find and plot the data of the header against positional distribution in the tube
+            x = df["x"]
+            y = df[header]
+            ax.plot(x, y, color=colours_list.pop(0))
+
+            # What are the x positions of the reaction front estimated to be?
+            txtfile_idx = txtfiles.index(txtfile)
+            x_ann = statisticsdata["ReactionFront"]["x"][txtfile_idx]
+
+            # Since the txt files have more detailed meshes near the reaction front, look for the txtfile specific index
+            txt_xidx = list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"]).index(x_ann)
+            # Find the peak y value in a small range around where the reaction front is estimated to be located
+            headerdata = volcat[pressurestudy][mechanism][txtfile]["DataframeObj"][header]
+            y_ann = max([headerdata[min(max(txt_xidx + idx, 0), len(headerdata) - 1)] for idx in range(-20, 20)])
+            # Annotate the raw plot
+            plt.annotate(str(y_ann), xy=(x_ann, y_ann), xytext=(x_ann, y_ann + 0.05 * headermax), xycoords="data",
+                         arrowprops={"arrowstyle": "->"})
+
+            # Save the resulting figure, and inform the user of progress
+            outputfile_name = "{0}.png".format(timestamp)
+            outputfile_path = os.path.join(outputdir_path, outputfile_name)
+            plt.grid(True)
+            plt.savefig(fname=outputfile_path)
+            plt.close('all')
+            filecount += 1
+
+        # End a timer and return the time taken for the statistics method to run
+        finish = time.perf_counter()
+        print(f"{_gettimestr()} (Plotted files in {(finish - start):.1f} s)")
 
         # Return the total number of counted files exported
         print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
