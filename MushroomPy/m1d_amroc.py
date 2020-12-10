@@ -899,7 +899,7 @@ class DetonationTube:
                 if mechanism in detonationcheck_dict[datacase].keys():
                     mechanismdetonation_dict[mechanism][datacase] = detonationcheck_dict[datacase][mechanism]
 
-        # Step 2: For each mechanism, export a file containing a boolean of all the detonation statuses
+        # Step 2: For each mechanism, export an excel sheet containing a boolean of all the detonation statuses
         outputfile_name = f"detonations_{_getdatetimestr()}.xlsx"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         writer = pd.ExcelWriter(outputfile_path, engine='openpyxl')
@@ -1394,8 +1394,14 @@ class DetonationTube:
             [11:43:12.607] ...for case 1/1 | '60_20_8_data'
             [11:43:13.219] (Generated statistics in 0.6 s)
             [11:43:13.219] Exporting Temporal Pressure Data...
-            [11:43:13.538] >> Exported 27 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\FEAdata\60_20_8_data'.
+            [11:43:13.538] >> Exported 29 file(s) to 'D:\...\_output\m1d_amroc\DetonationTube\FEAdata\60_20_8_data'.
         """
+        try:
+            import openpyxl
+            excel = True
+        except ImportError:
+            excel = False
+
         # Preamble
         volcat = self.volatilecatalogue
         mechanismdata = volcat[pressurestudy][mechanism]
@@ -1465,6 +1471,12 @@ class DetonationTube:
         # Use a matplotlib colour map
         cmap = cm.get_cmap("winter")
 
+        if excel is True:
+            # For each waveform, we want to export an excel sheet containing a boolean of all the detonation statuses
+            outputfile_name = f"waveforms_aggregated.xlsx"
+            outputfile_path = os.path.join(outputdir_path, outputfile_name)
+            writer = pd.ExcelWriter(outputfile_path, engine='openpyxl')
+
         # For every FEA region
         for xp_idx in range(len(xpositions_cm)):
             # Build a pandas data frame with these headers
@@ -1509,10 +1521,20 @@ class DetonationTube:
             else:
                 ax.plot(list(df["time (s)"]), list(df["pressure"]), color=cmap(fraction), ls="-")
 
-            # Export the results
+            if excel is True:
+                # Export the results
+                df.to_excel(writer, index=False, engine="openpyxl", sheet_name=f"waveform_{filecount:03}")
+
+            # Also store into excel sheets of separate files
             outputfile_name = f"waveform_{filecount:03}.csv"
             outputfile_path = os.path.join(outputdir_path, outputfile_name)
             df.to_csv(outputfile_path, index=False, header=True)
+            # Increment the file counter
+            filecount += 1
+
+        if excel is True:
+            # Save excel worksheet and write-out
+            writer.save()
             # Increment the file counter
             filecount += 1
 
@@ -1520,7 +1542,7 @@ class DetonationTube:
         ax.legend(title=(f"{mechanism} with vN Spike" if vn is True else mechanism))
 
         # Save the resulting figure
-        outputfile_name = f"waveforms.png"
+        outputfile_name = f"waveforms_aggregated.png"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         plt.savefig(fname=outputfile_path)
         plt.close('all')
