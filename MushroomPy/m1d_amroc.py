@@ -29,6 +29,7 @@ from itertools import cycle
 # import openpyxl (this excel writing engine must be installed to export XLSX reports)
 import numpy as np
 import pandas as pd
+import scipy.integrate as integrate
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from scipy import interpolate
@@ -323,7 +324,7 @@ class DetonationTube:
 
                     # Initialise parameters to build a pandas dataframe to track the combustion front
                     combustiontracker = [["time (s)", "x"]]
-                    _, _, q, _ = self.case_initialconditions(pressurestudy=pressurecase, mechanism=mechanism)
+                    _, _, q, _ = self.case_drivenconditions(pressurestudy=pressurecase, mechanism=mechanism)
 
                     # For each header
                     for header in headers:
@@ -951,7 +952,7 @@ class DetonationTube:
         writer.save()
         print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
-    def case_initialconditions(self, pressurestudy, mechanism):
+    def case_drivenconditions(self, pressurestudy, mechanism):
         """Use this method to return the initial conditions of the detonation initiation region.
 
         **Parameters:**
@@ -1023,7 +1024,7 @@ class DetonationTube:
         if diluentfrac > 0:
             # Work out the diluent gas (stored in the name of the mechanism)
             diluent = mechanism.split("_")[0]
-            q += f"{diluent}:{diluentmoles}"
+            q += f" {diluent}:{diluentmoles}"
 
         return p1, t1, q, diluentmoles
 
@@ -1076,7 +1077,7 @@ class DetonationTube:
             for mechanism in mechanisms:
 
                 # Work out the quantities required by the Shock and Detonation Toolbox
-                p1, t1, q, diluentmoles = self.case_initialconditions(pressurestudy=datacase, mechanism=mechanism)
+                p1, t1, q, diluentmoles = self.case_drivenconditions(pressurestudy=datacase, mechanism=mechanism)
 
                 # If 'fast' is true and q=C2H4:3O2:xAr, look for a pre-baked approximation
                 if (fast is True) and ("C2H4:1.00 O2:3.00 Ar:" in q) and ("Ar" == q.split(" ")[-1].split(":")[0]):
@@ -1160,8 +1161,8 @@ class DetonationTube:
         # Set up a simple dataframe to refer back to, of initial conditions
         initialdf = volcat[pressurestudy][mechanism]["dat_0.txt"]["DataframeObj"]
 
-        # Find initial conditions P1, T1
-        p1, t1, _, _ = self.case_initialconditions(pressurestudy=pressurestudy, mechanism=mechanism)
+        # Find initial driven conditions P1, T1
+        p1, t1, _, _ = self.case_drivenconditions(pressurestudy=pressurestudy, mechanism=mechanism)
 
         # Find the first position index in the tube, where "initial conditions" begin
         initialconditions_idx = list(initialdf["Temperature"]).index(t1)
@@ -1172,6 +1173,28 @@ class DetonationTube:
         xk = initialdf["x"][initialconditions_idx]
 
         return pk, tk, xk, initialconditions_idx
+
+    def case_toolboxconditions(self, pressurestudy, mechanism):
+        # Preamble
+        volcat = self.volatilecatalogue
+
+        # Set up a simple dataframe to refer back to, of initial conditions
+        initialdf = volcat[pressurestudy][mechanism]["dat_0.txt"]["DataframeObj"]
+
+        positions = list(initialdf["x"])[30:]
+        temperatures = list(initialdf["Temperature"])[30:]
+        pressures = list(initialdf["Pressure"])[30:]
+
+        f_temperature = interpolate.interp1d(positions, temperatures)
+        f_pressure = interpolate.interp1d(positions, pressures)
+
+        temperature, err = integrate.nquad(lambda x: f_temperature(x), ranges=[(positions[0], positions[-1])],
+                                           opts={"limit": 999, "epsabs": 1})
+        print(temperature, err, temperature / (positions[-1] - positions[0]))
+
+        pressure, err = integrate.nquad(lambda x: f_pressure(x), ranges=[(positions[0], positions[-1])],
+                                        opts={"limit": 999, "epsabs": 100})
+        print(pressure, err, pressure / (positions[-1] - positions[0]))
 
     def export_similarityreport(self):
         """Use this method to export "similarity score" csv files, from the list of pressure cases to be considered.
@@ -1426,20 +1449,17 @@ class DetonationTube:
         # Create a list of all data files for the mechanism
         txtfiles = [key for key in mechanismdata.keys()]
 
+        # What are the x positions at the centre of all the FEA regions to consider?
         xstart = []
         xfinish = []
-
-        # What are the x positions at the centre of all the FEA regions to consider?
         for txtfile in txtfiles:
             xstart.append(list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"])[0])
             xfinish.append(list(volcat[pressurestudy][mechanism][txtfile]["DataframeObj"]["x"])[-1])
         xpositions_cm = np.linspace(start=max(xstart), stop=min(xfinish), num=waveforms)
 
-        # Create empty lists to store data that will turn into the desired CSVs
+        # Iterate through each data file
         waveformtimestamps = []
         waveformspressures = []
-
-        # Iterate through each data file
         for txtfile in txtfiles:
             # Using the volatile catalogue dataframe, find the pressure for every x position, and the timestamp
             timestamp = mechanismdata[txtfile]["Time Elapsed"]
@@ -1471,6 +1491,7 @@ class DetonationTube:
         # Use a matplotlib colour map
         cmap = cm.get_cmap("winter")
 
+        writer = None
         if excel is True:
             # For each waveform, we want to export an excel sheet containing a boolean of all the detonation statuses
             outputfile_name = f"waveforms_aggregated.xlsx"
@@ -1618,9 +1639,6 @@ class DetonationTube:
             raise KeyError(f"Header '{header}' was not found in list of valid headers. Use "
                            f"'self.data_headerscatalogue()' to learn of available headers.")
 
-        # What is the maximum value of the header?
-        headermax = max(list(statisticsdata[header]["maximum"]))
-
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "RawdataPlots", pressurestudy, mechanism, header)
         if not os.path.exists(outputdir_path):
@@ -1637,20 +1655,29 @@ class DetonationTube:
 
         x_roc = []
         y_roc = []
+        
+        # What is the maximum value of the header?
+        headermax = max(list(statisticsdata[header]["maximum"]))
 
         def find_reactionfrontpeak(txt_file, x_estimate):
             # Make a list of all the available x positions
             available_x = list(volcat[pressurestudy][mechanism][txt_file]["DataframeObj"]["x"])
             # Record the x position where the reaction front is as an index of the x positions in the full data txt file
-            # Also record the x position, if possible, around 5cm behind where the reaction front is determined to be
-            txt_xminus5idx = available_x.index(min(available_x, key=lambda x: abs(x - x_estimate + 5)))
+            # Also record the x position, if possible, around 5 cm behind where the reaction front is determined to be
+            txt_xoffsetidx = available_x.index(min(available_x, key=lambda x: abs(x - x_estimate + 5)))
             txt_xidx = available_x.index(x_estimate)
 
             # Find the peak y value in a small range around and behind where the reaction front is estimated to be
             hdrdata = volcat[pressurestudy][mechanism][txt_file]["DataframeObj"][header]
-            return max([hdrdata[min(max(idx, 0), len(hdrdata) - 1)] for idx in range(txt_xminus5idx, txt_xidx + 1)])
+            return max([hdrdata[min(max(idx, 0), len(hdrdata) - 1)] for idx in range(txt_xoffsetidx, txt_xidx + 1)])
 
-        # Iterate over every time step
+        # Work out the quantities required by the Shock and Detonation Toolbox
+        p1, t1, q, diluentmoles = self.case_drivenconditions(pressurestudy=pressurestudy, mechanism=mechanism)
+        zerodobj = sdt(p_initial=p1, t_initial=t1, q_initial=q)
+        cjpressure = False
+        cjvelocity = False
+
+        # Iterate over every time step to find the raw data
         for txtfile in txtfiles:
             # What duration of time has elapsed, and what is the data associated with this passage of time?
             timestamp = format(mechanismdata[txtfile]["Time Elapsed"], '.6f')
@@ -1661,12 +1688,27 @@ class DetonationTube:
             ax = fig.add_axes([0.12, 0.12, 0.76, 0.80])  # left bottom width height
             ax.set_title(f"{pressurestudy}\\{mechanism} {header} ({format(1000 * float(timestamp), '.3f')} ms)")
             ax.set_xlim(0, round(list(df["x"])[-1], 0))
-            ax.set_ylim(0, 1.1 * headermax)
 
             # Find and plot the data of the header against positional distribution in the tube
             x = df["x"]
             y = df[header]
             ax.plot(x, y, color=colours_list.pop(0))
+
+            if header == "Pressure":
+                # Work out the quantities required by the Shock and Detonation Toolbox
+                if cjpressure is False:
+                    cjpressure = zerodobj.calc_cjpressure()
+                ax.plot([list(x)[0], list(x)[-1]], [cjpressure, cjpressure], color="red", ls="-")
+                ax.set_ylim(0, 1.1 * max(cjpressure, headermax))
+
+            elif header == "Velocityu":
+
+                if cjvelocity is False:
+                    cjvelocity = zerodobj.calc_cjspeed()
+
+                cjvelocityu = [cjvelocity - list(df["SpeedofSound"])[i] for i in range(len(df["x"]))]
+                ax.plot(list(x), cjvelocityu, color="red", ls="-")
+                ax.set_ylim(0, 1.1 * max(cjvelocity, headermax))
 
             # What is the x position of the reaction front estimated to be?
             txtfile_idx = txtfiles.index(txtfile)
@@ -1678,7 +1720,10 @@ class DetonationTube:
             if txtfile_idx > 0:
                 x_prev = statisticsdata["ReactionFront"]["x"][txtfile_idx - 1]
                 y_prev = find_reactionfrontpeak(txt_file=txtfiles[txtfile_idx - 1], x_estimate=x_prev)
-                dper = (y_ann - y_prev) / y_prev
+                if y_prev == 0:
+                    dper = np.inf
+                else:
+                    dper = (y_ann - y_prev) / y_prev
             else:
                 dper = 0
             dper_str = f"{round(100 * dper, 2)}%"
@@ -1686,7 +1731,8 @@ class DetonationTube:
             # Record rate of change
             x_roc.append(x_ann)
             y_roc.append(dper * 100)
-
+            # Record percent difference from CJ
+            
             # Annotate the raw plot
             plt.annotate(str(y_ann), xy=(x_ann, y_ann), xytext=(x_ann, y_ann + 0.05 * headermax), xycoords="data",
                          arrowprops={"arrowstyle": "->"})
@@ -1708,14 +1754,15 @@ class DetonationTube:
         ax.set_ylim(-30, 30)
 
         # Plot the rate of change of the detonation front header value
-        thresholdpercent = 5
+        thresholdpercent = 2
         ax.fill_between(x_roc, [-thresholdpercent] * len(x_roc), [thresholdpercent] * len(x_roc), alpha=0.3)
-        ax.plot(x_roc, y_roc, c=cmap(0))
+        ax.plot(x_roc, y_roc, c=cmap(0), label="Detonation Front Peak")
+        ax.plot(label="Delta from 0D CJ Prediction")
         ax.set_xlabel("Position [cm]")
-        ax.set_ylabel("Detonation Front Change [%]")
+        ax.set_ylabel("Percent Change [%]")
 
         # Save the resulting figure
-        outputfile_name = "Pressure+DF_RoC.png"
+        outputfile_name = f"{header}+DF_RoC.png"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         plt.grid(True)
         plt.savefig(fname=outputfile_path)
@@ -1736,7 +1783,7 @@ if __name__ == "__main__":
     study1 = DetonationTube()
 
     for testcase in study1.datacatalogue:
-        study1.case_read(pressurestudy=testcase)
+         study1.case_read(pressurestudy=testcase)
     
     study1.export_detonationreport()
     study1.export_similarityreport()
