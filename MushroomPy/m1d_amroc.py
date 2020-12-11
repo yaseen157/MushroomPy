@@ -1625,7 +1625,7 @@ class DetonationTube:
             statisticsdata = self.data_statistics()[pressurestudy][mechanism]
             headers = self.data_headerscatalogue()[pressurestudy][mechanism]
         else:
-            warnmsg = f"Could not find data for {mechanism} in {pressurestudy}, skipping raw plot."
+            warnmsg = f"Could not find data for {mechanism} in {pressurestudy}, skipping statistics generation."
             warnings.warn(warnmsg)
             return
 
@@ -1639,109 +1639,140 @@ class DetonationTube:
             raise KeyError(f"Header '{header}' was not found in list of valid headers. Use "
                            f"'self.data_headerscatalogue()' to learn of available headers.")
 
+        # What are the total number of files expected to be processed?
+        txtfiles = [key for key in mechanismdata.keys()]
+
+        # Work out the quantities required by the Shock and Detonation Toolbox 0D methods
+        p1, t1, q, diluentmoles = self.case_drivenconditions(pressurestudy=pressurestudy, mechanism=mechanism)
+        zerodobj = sdt(p_initial=p1, t_initial=t1, q_initial=q)
+
+        if header == "Pressure":
+            # Predict the 0D Toolbox CJ Pressure
+            cjval = zerodobj.calc_cjpressure()
+        elif header == "Velocityu":
+            # Predict the 0D Toolbox CJ Velocityu from the CJ Velocity, by first computing the CJ speed
+            cjval = zerodobj.calc_cjspeed()
+        else:
+            # There is no CJ prediction method implemented for the header, so populate it with "filler"
+            cjval = np.nan
+
+        # Step 1: We need to aggregate all the data for the header from all the text files
+        headerdata = dict(zip(txtfiles, [{} for _ in range(len(txtfiles))]))
+        for txtfile in txtfiles:
+            # Find all the data that is associated with a timestamp
+            df = mechanismdata[txtfile]["DataframeObj"]
+
+            # First and foremost, gather the header x and y data for the header
+            headerdata[txtfile]["x"] = df["x"]
+            headerdata[txtfile]["y"] = df[header]
+
+            # Secondly, we need to find the relevant CJ values
+            if header == "Velocityu":
+                # CJ Velocityu requires some extra work before being taken from the predicted CJ Velocity
+                headerdata[txtfile]["CJprediction"] = [cjval - list(df["SpeedofSound"])[i] for i in range(len(df["x"]))]
+            else:
+                # The CJ value can be taken straight away
+                headerdata[txtfile]["CJprediction"] = [cjval] * len(df["x"])
+
+            # Thirdly, find the position of the peak value at the shock
+            txtfile_idx = txtfiles.index(txtfile)
+            # What is the x value at which the reaction front lies?
+            headerdata[txtfile]["x_shockfront"] = statisticsdata["ReactionFront"]["x"][txtfile_idx]
+            # What are the indices of x values in the textfile, for which a peak value should be searched?
+            shockpk_idx = list(df["x"]).index(headerdata[txtfile]["x_shockfront"])
+            shockpkoffset_idx = list(df["x"]).index(
+                min(df["x"], key=lambda x: abs(x - headerdata[txtfile]["x_shockfront"] + 5)))
+            # For the given index search range, find the peak value of the header
+            headerdata[txtfile]["y_shockpeak"] = max(
+                [df[header][i] for i in range(shockpkoffset_idx, max(shockpk_idx, 1))])
+            # What is the CJ value that may correspond to the shock peak value?
+            if header == "Velocityu":
+                # CJ Velocityu requires some extra work
+                headerdata[txtfile]["y_shockcj"] = min(
+                    [headerdata[txtfile]["CJprediction"][i] for i in range(shockpkoffset_idx, max(shockpk_idx, 1))])
+            else:
+                # The CJ value can be taken straight away
+                headerdata[txtfile]["y_shockcj"] = headerdata[txtfile]["CJprediction"][shockpk_idx]
+
+        # Step 2: We must set up the plots and the output parameters
+        filecount = 0
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "RawdataPlots", pressurestudy, mechanism, header)
         if not os.path.exists(outputdir_path):
             os.makedirs(outputdir_path)
+        # Else the directory already exists, and so its contents must be cleared
+        else:
+            for root, dirs, files in os.walk(outputdir_path, topdown=False):
+                for name in files:
+                    os.remove(os.path.join(root, name))
 
-        # What are the total number of files expected to be processed?
-        txtfiles = [key for key in mechanismdata.keys()]
-        filecount = 0
+        # Find limiting values that will help us create fixed scale plots
+        max_xpos = max([max(headerdata[txtfile]["x"]) for txtfile in txtfiles])
+        max_header = max([max(headerdata[txtfile]["y"]) for txtfile in txtfiles])
+        max_cj = max([max(headerdata[txtfile]["CJprediction"]) for txtfile in txtfiles])
 
         # Setup colour mapping
         cmap = cm.get_cmap("winter")
         colours_idx = np.linspace(0, 1, len(txtfiles))
         colours_list = [cmap(index) for index in list(colours_idx)]
 
-        x_roc = []
-        y_roc = []
-        
-        # What is the maximum value of the header?
-        headermax = max(list(statisticsdata[header]["maximum"]))
-
-        def find_reactionfrontpeak(txt_file, x_estimate):
-            # Make a list of all the available x positions
-            available_x = list(volcat[pressurestudy][mechanism][txt_file]["DataframeObj"]["x"])
-            # Record the x position where the reaction front is as an index of the x positions in the full data txt file
-            # Also record the x position, if possible, around 5 cm behind where the reaction front is determined to be
-            txt_xoffsetidx = available_x.index(min(available_x, key=lambda x: abs(x - x_estimate + 5)))
-            txt_xidx = available_x.index(x_estimate)
-
-            # Find the peak y value in a small range around and behind where the reaction front is estimated to be
-            hdrdata = volcat[pressurestudy][mechanism][txt_file]["DataframeObj"][header]
-            return max([hdrdata[min(max(idx, 0), len(hdrdata) - 1)] for idx in range(txt_xoffsetidx, txt_xidx + 1)])
-
-        # Work out the quantities required by the Shock and Detonation Toolbox
-        p1, t1, q, diluentmoles = self.case_drivenconditions(pressurestudy=pressurestudy, mechanism=mechanism)
-        zerodobj = sdt(p_initial=p1, t_initial=t1, q_initial=q)
-        cjpressure = False
-        cjvelocity = False
-
-        # Iterate over every time step to find the raw data
+        # Step 3: Plot the results for each timestamp!
+        xy_pcentdelta = {"x": [], "y": []}
+        xy_pcentdiff = {"x": [], "y": []}
         for txtfile in txtfiles:
             # What duration of time has elapsed, and what is the data associated with this passage of time?
             timestamp = format(mechanismdata[txtfile]["Time Elapsed"], '.6f')
-            df = mechanismdata[txtfile]["DataframeObj"]
+            datadict = headerdata[txtfile]
 
             # Set up basic plotting parameters
             fig = plt.figure(figsize=[9, 9], dpi=100)
             ax = fig.add_axes([0.12, 0.12, 0.76, 0.80])  # left bottom width height
             ax.set_title(f"{pressurestudy}\\{mechanism} {header} ({format(1000 * float(timestamp), '.3f')} ms)")
-            ax.set_xlim(0, round(list(df["x"])[-1], 0))
+            ax.set_xlim(0, round(max_xpos, 0))
+            ax.set_ylim(0, 1.1 * round(max(max_header, max_cj), 0))
+            ax.grid(True)
 
-            # Find and plot the data of the header against positional distribution in the tube
-            x = df["x"]
-            y = df[header]
-            ax.plot(x, y, color=colours_list.pop(0))
+            # Plot the raw text file data
+            ax.plot(datadict["x"], datadict["y"], c=colours_list.pop(0), label="1D AMROC")
 
-            if header == "Pressure":
-                # Work out the quantities required by the Shock and Detonation Toolbox
-                if cjpressure is False:
-                    cjpressure = zerodobj.calc_cjpressure()
-                ax.plot([list(x)[0], list(x)[-1]], [cjpressure, cjpressure], color="red", ls="-")
-                ax.set_ylim(0, 1.1 * max(cjpressure, headermax))
+            # Plot the 0D Toolbox CJ predicted data
+            ax.plot(datadict["x"], datadict["CJprediction"], c="red", ls="-", label="0D Toolbox")
 
-            elif header == "Velocityu":
+            # Annotate the raw plot with the shock peak value
+            ax.annotate(text=str(round(datadict["y_shockpeak"], 2)),
+                        xy=(datadict["x_shockfront"], datadict["y_shockpeak"]),
+                        xytext=(datadict["x_shockfront"], datadict["y_shockpeak"] + 0.05 * max(max_header, max_cj)),
+                        xycoords="data",
+                        arrowprops={"arrowstyle": "->"})
 
-                if cjvelocity is False:
-                    cjvelocity = zerodobj.calc_cjspeed()
-
-                cjvelocityu = [cjvelocity - list(df["SpeedofSound"])[i] for i in range(len(df["x"]))]
-                ax.plot(list(x), cjvelocityu, color="red", ls="-")
-                ax.set_ylim(0, 1.1 * max(cjvelocity, headermax))
-
-            # What is the x position of the reaction front estimated to be?
+            # Annotate the raw plot with the change compared to the previous shock value
             txtfile_idx = txtfiles.index(txtfile)
-            x_ann = statisticsdata["ReactionFront"]["x"][txtfile_idx]
-            # What is the peak y value of the header near the reaction front?
-            y_ann = find_reactionfrontpeak(txt_file=txtfile, x_estimate=x_ann)
-
-            # If there is a text file for a previous timestamp, what is the percent change in y value from it?
             if txtfile_idx > 0:
-                x_prev = statisticsdata["ReactionFront"]["x"][txtfile_idx - 1]
-                y_prev = find_reactionfrontpeak(txt_file=txtfiles[txtfile_idx - 1], x_estimate=x_prev)
-                if y_prev == 0:
-                    dper = np.inf
-                else:
-                    dper = (y_ann - y_prev) / y_prev
-            else:
-                dper = 0
-            dper_str = f"{round(100 * dper, 2)}%"
+                prev_txtfile = txtfiles[txtfile_idx - 1]
+                prev_y_shockpeak = headerdata[prev_txtfile]["y_shockpeak"]
 
-            # Record rate of change
-            x_roc.append(x_ann)
-            y_roc.append(dper * 100)
-            # Record percent difference from CJ
-            
-            # Annotate the raw plot
-            plt.annotate(str(y_ann), xy=(x_ann, y_ann), xytext=(x_ann, y_ann + 0.05 * headermax), xycoords="data",
-                         arrowprops={"arrowstyle": "->"})
-            plt.annotate(dper_str, xy=(x_ann, y_ann), xytext=(x_ann + 0.05 * list(df["x"])[-1], y_ann), xycoords="data")
+                if prev_y_shockpeak == 0:
+                    percentdelta = np.inf
+                else:
+                    percentdelta = (datadict["y_shockpeak"] - prev_y_shockpeak) / prev_y_shockpeak
+            else:
+                percentdelta = 0
+            ax.annotate(text=f"{round(100 * percentdelta, 2)}%",
+                        xy=(datadict["x_shockfront"], datadict["y_shockpeak"]),
+                        xytext=(datadict["x_shockfront"] + 0.05 * max_xpos, datadict["y_shockpeak"]),
+                        xycoords="data")
+
+            # Record the percentage delta from the last value
+            xy_pcentdelta["x"].append(datadict["x_shockfront"])
+            xy_pcentdelta["y"].append(100 * percentdelta)
+            # Record the percentage difference from the CJ prediction
+            xy_pcentdiff["x"].append(datadict["x_shockfront"])
+            xy_pcentdiff["y"].append(100 * (datadict["y_shockpeak"] - datadict["y_shockcj"]) / datadict["y_shockcj"])
 
             # Save the resulting figure
+            ax.legend()
             outputfile_name = f"{timestamp}.png"
             outputfile_path = os.path.join(outputdir_path, outputfile_name)
-            plt.grid(True)
             plt.savefig(fname=outputfile_path)
             plt.close('all')
             filecount += 1
@@ -1749,22 +1780,23 @@ class DetonationTube:
         # Set up basic plotting parameters
         fig = plt.figure(figsize=[9, 9], dpi=100)
         ax = fig.add_axes([0.12, 0.12, 0.76, 0.80])  # left bottom width height
-        ax.set_title(f"{pressurestudy}\\{mechanism} {header} (Detonation Front RoC)")
-        ax.set_xlim(0, x_roc[-1])
+        ax.set_title(f"{pressurestudy}\\{mechanism}\\{header} (CJ Agreement Summary)")
+        ax.set_xlim(0, round(max_xpos, 0))
         ax.set_ylim(-30, 30)
-
-        # Plot the rate of change of the detonation front header value
-        thresholdpercent = 2
-        ax.fill_between(x_roc, [-thresholdpercent] * len(x_roc), [thresholdpercent] * len(x_roc), alpha=0.3)
-        ax.plot(x_roc, y_roc, c=cmap(0), label="Detonation Front Peak")
-        ax.plot(label="Delta from 0D CJ Prediction")
+        ax.grid(True)
         ax.set_xlabel("Position [cm]")
-        ax.set_ylabel("Percent Change [%]")
+        ax.set_ylabel("Percent [%]")
+
+        # Plot the rate of change of the detonation front header value, scored with a threshold percentage delta (tpr)
+        tpr = 2
+        ax.fill_between(xy_pcentdelta["x"], [-tpr] * len(xy_pcentdelta["x"]), [tpr] * len(xy_pcentdelta["x"]), alpha=.3)
+        ax.plot(xy_pcentdelta["x"], xy_pcentdelta["y"], c=cmap(0), label="Change in 1D AMROC CJ Simulated")
+        ax.plot(xy_pcentdiff["x"], xy_pcentdiff["y"], c="red", label="Difference from 0D CJ Predicted")
 
         # Save the resulting figure
+        ax.legend()
         outputfile_name = f"{header}+DF_RoC.png"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
-        plt.grid(True)
         plt.savefig(fname=outputfile_path)
         plt.close('all')
         filecount += 1
@@ -1783,7 +1815,7 @@ if __name__ == "__main__":
     study1 = DetonationTube()
 
     for testcase in study1.datacatalogue:
-         study1.case_read(pressurestudy=testcase)
+        study1.case_read(pressurestudy=testcase)
     
     study1.export_detonationreport()
     study1.export_similarityreport()
