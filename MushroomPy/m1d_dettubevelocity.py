@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+
+"""
+MushroomPy Module
+
+Generate plots of detonation velocities from data as produced by the following program(s):
+VTF > AMROC > Clawpack > Euler Chemistry > 1D > Detonation Tube
+
+Updated January 2021
+Tested with:
+    Python 3.8, Windows 10
+
+Author Email: bdmc1n17@soton.ac.uk
+"""
+
+__author__ = "Bruno del Mazo Canaleta"
+
+
 import m1d_amroc as m1d
 import numpy as np
 from matplotlib import pyplot as plt
@@ -477,4 +495,5 @@ compare(study1, caselist)
                 print(allXpositions[j] - allXpositions[j-3]) 
  """
 
-AllIn()
+if __name__ == "__main__":
+    AllIn()

@@ -16,7 +16,6 @@ Author Email: yr3g17@soton.ac.uk
 __author__ = "Yaseen Reza"
 
 import copy
-import datetime
 import math
 import os
 import re
@@ -33,54 +32,35 @@ from matplotlib import cm
 from matplotlib import pyplot as plt
 from scipy import interpolate
 
+import mpy_config as mpyconf
+import mpy_utilities as mpyutil
 from m0d_sdt import ShockDetonationToolbox as sdt
-
-
-def _gettimestr():
-    """Global function, call to return a string with the current time."""
-    timenow = datetime.datetime.now()
-    hour = timenow.hour
-    minute = timenow.minute
-    second = timenow.second
-    ms = int(timenow.microsecond / 1000)
-
-    return f"[{hour:02}:{minute:02}:{second:02}.{ms:03}]"
-
-
-def _getdatetimestr():
-    """Global function, call to return a string with the current date-time."""
-    timenow = datetime.datetime.now()
-    hour = timenow.hour
-    minute = timenow.minute
-    second = timenow.second
-    date = timenow.date()
-    return f"{str(date)}_{hour:02}-{minute:02}-{second:02}"
 
 
 class DetonationTube:
     """**One-dimensional** detonation analysis tool, intended for use with simulation data from the virtual test
-    facility (VTF) '../amroc/clawpack/applications/euler_chem/1d/DetonationTube'. This class is designed for use with a
+    facility (VTF) '..\\amroc\\clawpack\\applications\\euler_chem\\1d\\DetonationTube'. This class is designed for use with a
     fuel:oxidiser:monodiluent setup.
 
-    Where the root directory contains this module (root/m1d_amroc.py), simulation text files should be stored here:
-        root/1D_AMROC_data/<driver_kpa>_<driven_kpa>_<moldiluent-unitymolesfuel_ratio>/<diluent>_<mechanism>/dat_xxx.txt
-    For example, 'root/1D_AMROC_data/50_10_2_data/Ar_C2H4_Jachi/dat_134.txt'.
+    Where the dataroot directory is selected on first setup, simulation text files should be stored there as:
+        ...\\<dataroot>\\1D_AMROC_data\\<driver_kpa>_<driven_kpa>_<moldiluent-unitymolesfuel_ratio>\\<diluent>_<mechanism>\\dat_xxx.txt
+    For example, '...\\<dataroot>\\1D_AMROC_data\\50_10_2_data\\Ar_C2H4_Jachi\\dat_134.txt'.
     """
 
     def __init__(self):
-        # Where is this Python tools file located?
-        # Python module directory
-        self.module_path = os.path.dirname(__file__)
+
+        # MushroomPy data I/O directory
+        self.data_path = mpyconf.parse_configfile()["dataroot"]
         # Python module name
         self.module = os.path.basename(__file__).replace(".py", "")
         # Python class name
         self.classname = type(self).__name__
 
         # Where are the Input and Output directories?
-        # Output data directory (e.g. ...\_output\hpcsimtools\AMROC1d\...)
-        self.output_path = os.path.join(self.module_path, "_output", self.module, self.classname)
+        # Output data directory (e.g. ...\<dataroot>\_output\hpcsimtools\AMROC1d\...)
+        self.output_path = os.path.join(self.data_path, "_output", self.module, self.classname)
         # Input data directory
-        self.simdata_path = os.path.join(self.module_path, "1D_AMROC_data")
+        self.simdata_path = os.path.join(self.data_path, "1D_AMROC_data")
 
         # Check if the simulation data folder is available, else make it
         if not os.path.exists(self.simdata_path):
@@ -146,7 +126,7 @@ class DetonationTube:
         if pressurestudy in self.datacatalogue.keys():
 
             # Inform the user task is beginning
-            print(f"{_gettimestr()} Reading case '{pressurestudy}'...")
+            print(f"{mpyutil.gettimestr()} Reading case '{pressurestudy}'...")
 
             # Create an entry in the volatile data catalogue
             self.volatilecatalogue[pressurestudy] = {}
@@ -200,7 +180,7 @@ class DetonationTube:
         """
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Removing data case '{pressurestudy}'...")
+        print(f"{mpyutil.gettimestr()} Removing data case '{pressurestudy}'...")
 
         # Is the folder name valid? Proceed if the folder can be found in the catalogue
         if pressurestudy in self.volatilecatalogue.keys():
@@ -297,7 +277,7 @@ class DetonationTube:
         headers_dict = self.data_headerscatalogue()
 
         # Inform the user task is beginning and initialise variables to track the progress metric of this method
-        print(f"{_gettimestr()} Generating statistics...")
+        print(f"{mpyutil.gettimestr()} Generating statistics...")
         start = time.perf_counter()
         casecount_current = 0
         casecount_target = str(len(missingcases_set))
@@ -312,7 +292,7 @@ class DetonationTube:
                 # Inform the user task is progressing
                 casecount_current += 1
                 casecount_str = format(casecount_current, "0" + str(len(casecount_target))) + "/" + casecount_target
-                print(f"{_gettimestr()} ...for case {casecount_str} | '{pressurecase}'")
+                print(f"{mpyutil.gettimestr()} ...for case {casecount_str} | '{pressurecase}'")
 
                 # Flesh out the statistics dictionary with more branches
                 statistics_dict[pressurecase] = dict(zip(mechanisms, [{} for _ in range(len(mechanisms))]))
@@ -362,7 +342,7 @@ class DetonationTube:
 
         # End a timer and return the time taken for the statistics method to run
         finish = time.perf_counter()
-        print(f"{_gettimestr()} (Generated statistics in {(finish - start):.1f} s)")
+        print(f"{mpyutil.gettimestr()} (Generated statistics in {(finish - start):.1f} s)")
 
         return self.statistics
 
@@ -393,7 +373,7 @@ class DetonationTube:
         statistics_dict = self.data_statistics()
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Exporting statistics...")
+        print(f"{mpyutil.gettimestr()} Exporting statistics...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "StatisticsCSVs")
@@ -421,7 +401,7 @@ class DetonationTube:
                     filecount += 1
 
         # Return the total number of counted files exported
-        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
 
         return
 
@@ -457,7 +437,7 @@ class DetonationTube:
         simscores_dict = self._getsimilarityscores()
 
         # Inform the user task has proceeded
-        print(f"{_gettimestr()} Plotting mechanism comparisons...")
+        print(f"{mpyutil.gettimestr()} Plotting mechanism comparisons...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "StatisticsPlots")
@@ -540,7 +520,7 @@ class DetonationTube:
                     filecount += 1
 
         # Return the total number of counted files exported
-        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
 
     def _getcommonheaders(self):
         """In order to compare several mechanisms, only compare headers that are common between them."""
@@ -857,7 +837,7 @@ class DetonationTube:
         detonationcheck_dict = self.data_detonationcheck()
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Exporting detonation report...")
+        print(f"{mpyutil.gettimestr()} Exporting detonation report...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "Reports")
@@ -900,7 +880,7 @@ class DetonationTube:
                     mechanismdetonation_dict[mechanism][datacase] = detonationcheck_dict[datacase][mechanism]
 
         # Step 2: For each mechanism, export an excel sheet containing a boolean of all the detonation statuses
-        outputfile_name = f"detonations_{_getdatetimestr()}.xlsx"
+        outputfile_name = f"detonations_{mpyutil.getdatetimestr()}.xlsx"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         writer = pd.ExcelWriter(outputfile_path, engine='openpyxl')
 
@@ -949,7 +929,7 @@ class DetonationTube:
 
         # Save excel worksheet and write-out
         writer.save()
-        print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
     def case_drivenconditions(self, pressurestudy, mechanism):
         """Use this method to return the initial conditions of the detonation initiation region.
@@ -1228,7 +1208,7 @@ class DetonationTube:
         scorekeys = ["maximum", "mean"]
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Exporting similarity report...")
+        print(f"{mpyutil.gettimestr()} Exporting similarity report...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "Reports")
@@ -1310,7 +1290,7 @@ class DetonationTube:
                                 st.fmean(simscores_dict[pressurecase][header][scorekey][diluentmolecule])
 
         # Step 2: For each mechanism, export a file containing the similarity scores
-        outputfile_name = f"similarities_{_getdatetimestr()}.xlsx"
+        outputfile_name = f"similarities_{mpyutil.getdatetimestr()}.xlsx"
         outputfile_path = os.path.join(outputdir_path, outputfile_name)
         writer = pd.ExcelWriter(outputfile_path, engine='openpyxl')
 
@@ -1379,7 +1359,7 @@ class DetonationTube:
 
         # Save excel worksheet and write-out
         writer.save()
-        print(f"{_gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported Report '{outputfile_name}' to '{outputdir_path}'.")
 
     def export_pressurefea(self, pressurestudy, mechanism, waveforms=10, vn=True):
         """Use this method to export a series of temporal pressure waveforms suitable for FEA, for the given pressure
@@ -1430,7 +1410,7 @@ class DetonationTube:
         reactionfrontdf = self.data_statistics()[pressurestudy][mechanism]["ReactionFront"]
 
         # Inform the user task is beginning
-        print(f"{_gettimestr()} Exporting Temporal Pressure Data...")
+        print(f"{mpyutil.gettimestr()} Exporting Temporal Pressure Data...")
 
         # If the output directory being exported doesn't exist, make it
         outputdir_path = os.path.join(self.output_path, "FEAdata", pressurestudy)
@@ -1570,7 +1550,7 @@ class DetonationTube:
         filecount += 1
 
         # Return the total number of counted files exported
-        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
 
         return
 
@@ -1631,7 +1611,7 @@ class DetonationTube:
         # Check if the header even exists
         if header in headers:
             # Inform the user task has proceeded
-            print(f"{_gettimestr()} Plotting raw '{header}' data for '{pressurestudy}\\{mechanism}'...")
+            print(f"{mpyutil.gettimestr()} Plotting raw '{header}' data for '{pressurestudy}\\{mechanism}'...")
             start = time.perf_counter()
         else:
             # Raise an error if the header could not be found in a list of available headers.
@@ -1802,23 +1782,14 @@ class DetonationTube:
 
         # End a timer and return the time taken for the statistics method to run
         finish = time.perf_counter()
-        print(f"{_gettimestr()} (Plotted files in {(finish - start):.1f} s)")
+        print(f"{mpyutil.gettimestr()} (Plotted files in {(finish - start):.1f} s)")
 
         # Return the total number of counted files exported
-        print(f"{_gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
+        print(f"{mpyutil.gettimestr()} >> Exported {filecount} file(s) to '{outputdir_path}'.")
 
         return
 
 
 if __name__ == "__main__":
-    study1 = DetonationTube()
-
-    for testcase in study1.datacatalogue:
-        study1.case_read(pressurestudy=testcase)
-    
-    study1.export_detonationreport()
-    study1.export_similarityreport()
-    study1.export_statistics()
-    study1.export_temporalplots(colourseed=True)
 
     pass
