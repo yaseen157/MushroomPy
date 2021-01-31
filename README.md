@@ -1,4 +1,7 @@
-# Mushroom Py
+<img src="./Documentation/img_src/Logo_1024x.png" alt="MushroomPy Logo" width=100>
+
+
+# **Mushroom Py**
 
 A collection of Python tools used in the processing of data from the 
 [Virtual Test Facility](http://www.vtf.website/asc/wiki/bin/view/). 
@@ -6,11 +9,11 @@ This code is the product of a final-year student group project at the
 University of Southampton, to produce a modular rig for investigating 
 detonation-combustion propagation behaviour.
 
-Authors: Yaseen Reza, Bruno del Mazo Canaleta
+*Authors: Yaseen Reza, Bruno del Mazo Canaleta*
 
-## Installation Pre-requisites
+## **Installation Pre-requisites**
 
-### Python
+> ### Python
 
 MushroomPy is written for Python 3, and tested in Python 3.8 on 
 Windows 10 (64-bit) machines. You should be able to check what 
@@ -23,7 +26,7 @@ If the prompt responds with `Python 3.x.x`, you have verified your
 installation - otherwise, it is recommended you download the official 
 Python 3.8 distribution from [their website](https://www.python.org/downloads/).
 
-### PIP
+> ### PIP
 
 MushroomPy depends on a series of python modules, which are easily 
 installed using the package installer for Python (pip). To check if 
@@ -41,7 +44,7 @@ If you are missing any Python modules, they can be installed simply with
 
     $ pip install module_name
 
-### Shock and Detonation Toolbox
+> ### Shock and Detonation Toolbox
 
 Class methods in the MushroomPy code frequently require the use of the 
 [Shock and Detonation Toolbox](https://shepherd.caltech.edu/EDL/PublicResources/sdt/).
