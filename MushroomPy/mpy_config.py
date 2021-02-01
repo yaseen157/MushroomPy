@@ -20,7 +20,11 @@ import tkinter as tk
 import tkinter.filedialog      
 
 
-def update_configfile(config_path, configdict):
+def update_configfile(configdict):
+
+    # Find the path of the MushroomPy configuration file
+    module_directory = os.path.dirname(__file__)
+    config_path = os.path.join(module_directory, "config.ini")
 
     # ADD LOGIC FOR DEFAULT CONFIGURATIONS HERE
 
@@ -82,11 +86,11 @@ def parse_configfile():
                 configdict[set_k] = set_v
 
     # Update config.ini
-    update_configfile(config_path=config_path, configdict=configdict)
+    update_configfile(configdict=configdict)
 
     return configdict
 
 if __name__ == "__main__":
-
+    
     # Automatically perform config.ini setup
     parse_configfile()
