@@ -81,10 +81,10 @@ def getCellWidthData(queryfuel):
     ::
         ...
 
-         This is the filename: | at172d.txt | and here is the data:
-            Category  Fuel Sub-Category Oxidizer  Initial Pressure (kPa) Diluent  Initial Temperature (K)  Cell Width (mm)
-        0  cell size  C2H4        width      Air                   101.3                           298.15             19.5
-        1  cell size  C2H4        width      Air                   101.3                           373.15             16.0
+        This is the filename: | at172d.txt | and here is the data:
+            Category  Fuel Sub-Category Oxidizer  Initial Pressure (kPa) Diluent Equivalence Ratio  Initial Temperature (K)  Cell Width (mm)
+        0  cell size  C2H4        width      Air                   101.3                         1                   298.15             19.5
+        1  cell size  C2H4        width      Air                   101.3                         1                   373.15             16.0
     """
 
     urlext = _getCellWidthURLext(queryfuel=queryfuel)
@@ -182,7 +182,7 @@ def _recastaspandas(basepandadf, dicttorecast):
     """Given a dataframe and dictionary of initial conditions scraped from the database, return a full dataframe."""
     
     oldheaders_list = list(basepandadf.columns)
-    newheaders_list = list(dicttorecast.keys())[:-1]+oldheaders_list
+    newheaders_list = list(dicttorecast.keys())+oldheaders_list
 
     # Populate the new columns
     data_array = []
