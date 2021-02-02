@@ -70,50 +70,6 @@ def frameratePlotter(study, caselist, mechanismlist):
             ax.grid()
             fig.savefig(f'C:/Users/serio/Desktop/AMROC DATA/YaseensCode/{case}_{mech}.png', bbox_inches='tight')
 
-# Density method
-def densityMethod(postdiscposition, study, caselist):
-    
-    
-    # REMOVE FIRST ARGUMENT AFTER THE BEST WAY IS DECIDED
-
-    velocityDict = {}
-    for case in caselist:
-        # generate list of datastep.key strings (e.g. dat_0.txt) and the list of positions of the reaction front
-        xlist = study.data_statistics()[case]["Ar_GRI_red2"]["ReactionFront"]["x"]
-        dataSteps = [stepstring for stepstring in study.volatilecatalogue[case]["Ar_GRI_red2"].keys()]
-        
-        # shorten the list of useful data points
-        newxlist = []
-        newsteplist = []
-        i = 2   # which data step to start from, excluding as many as needed for comparison across discontinuity
-        while xlist[i]<349.5 or xlist[i+1]<349.5:
-            newxlist.append(xlist[i])
-            newsteplist.append(dataSteps[i])
-            i += 1
-        
-        # generate lists of densities for continuity equation ahead and behind discontinuity
-        # as well as gas velocities behind the discontinuity
-        ahead_densitylist = []
-        behind_densitylist = []
-        gasvelocity = []
-        waveVelocity = []
-        for i in range(len(newsteplist)):
-            allXpositions = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["x"]
-            allDensities = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["Density"]
-            allVelocityUs = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["Velocityu"]
-            for j in range(len(allXpositions)):
-                if allXpositions[j] == newxlist[i]:
-                    ahead_densitylist.append(allDensities[j])
-                    behind_densitylist.append(allDensities[j-postdiscposition])    # might have to make it i-2 or 3 to account for potential vN
-                    gasvelocity.append(allVelocityUs[j-postdiscposition])
-            # calculate the wave speed at each point from continuity (density) eq
-            waveV = behind_densitylist[i] * gasvelocity[i] / (behind_densitylist[i] - ahead_densitylist[i])
-            waveVelocity.append(waveV)
-        # put together as array in a dictionary
-        velocityDict[case] = np.array([newxlist, waveVelocity])
-    
-    return velocityDict
-
 # density method but taking max near-post-discontinuity value for rho and u
 def densityMethodMax(study, caselist, mechanismlist):
 
@@ -165,119 +121,6 @@ def densityMethodMax(study, caselist, mechanismlist):
             # put together as array in a dictionary
             velocityDict[case][mech] = np.array([newxlist, waveVelocity])
     
-    return velocityDict
-
-# Momentum method
-def momentumMethod(postdiscposition, study, caselist):
-    
-    
-    # REMOVE FIRST ARGUMENT AFTER THE BEST WAY IS DECIDED
-
-    velocityDict = {}
-    for case in caselist:
-        # generate list of datastep.key strings (e.g. dat_0.txt) and the list of positions of the reaction front
-        xlist = study.data_statistics()[case]["Ar_GRI_red2"]["ReactionFront"]["x"]
-        dataSteps = [stepstring for stepstring in study.volatilecatalogue[case]["Ar_GRI_red2"].keys()]
-        
-        # shorten the list of useful data points
-        newxlist = []
-        newsteplist = []
-        i = 2   # which data step to start from, excluding as many as needed for comparison across discontinuity
-        while xlist[i]<349.5 or xlist[i+1]<349.5:
-            newxlist.append(xlist[i])
-            newsteplist.append(dataSteps[i])
-            i += 1
-        
-        # generate lists of densitiesand pressures for continuity equation ahead and behind discontinuity
-        # as well as gas velocities behind the discontinuity
-        ahead_densitylist = []; ahead_pressurelist = []
-        behind_densitylist = []; behind_pressurelist = []
-        gasvelocity = []
-        waveVelocity = []
-        for i in range(len(newsteplist)):
-            allXpositions = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["x"]
-            allDensities = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["Density"]
-            allVelocityUs = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["Velocityu"]
-            allPressures = study.volatilecatalogue[case]["Ar_GRI_red2"][newsteplist[i]]["DataframeObj"]["Pressure"]
-            for j in range(len(allXpositions)):
-                if allXpositions[j] == newxlist[i]:
-                    ahead_densitylist.append(allDensities[j])
-                    ahead_pressurelist.append(allPressures[j])
-                    behind_densitylist.append(allDensities[j-postdiscposition])    # might have to make it i-2 or 3 to account for potential vN
-                    behind_pressurelist.append(allPressures[j-postdiscposition])
-                    gasvelocity.append(allVelocityUs[j-postdiscposition])
-            # calculate the wave speed at each point from momentum eq
-            # eq turns out to be a quadratic, so it's simpler to group terms
-            a = ahead_densitylist[i] - behind_densitylist[i]
-            b = 2 * behind_densitylist[i] * gasvelocity[i]
-            c = ahead_pressurelist[i] - behind_pressurelist[i] - behind_densitylist[i] * gasvelocity[i]**2
-            sol1 = (-1*b + (b**2 - 4*a*c)**0.5) / (2*a)
-            sol2 = (-1*b - (b**2 - 4*a*c)**0.5) / (2*a)
-            print (a, b, c, b**2 -4*a*c, sol1, sol2)
-
-# Momentum method but taking max near-post-discontinuity value for rho and u
-# NEEDS WORK, CURRENTLY IT BASICALLY IS THE SAME AS DENSITY METHOD
-def momentumMethodMax(study, caselist, mechanismlist):
-
-    velocityDict = {}
-    for case in caselist:
-        velocityDict[case] = {}
-        for mech in mechanismlist:
-            # generate list of datastep.key strings (e.g. dat_0.txt) and the list of positions of the reaction front
-            xlist = study.data_statistics()[case][mech]["ReactionFront"]["x"]
-            finalXposition = list(study.volatilecatalogue[case][mech]["dat_0.txt"]["DataframeObj"]["x"])[-1]
-            dataSteps = [stepstring for stepstring in study.volatilecatalogue[case][mech].keys()]
-            
-            # shorten the list of useful data points
-            newxlist = []
-            newsteplist = []
-            i = 3   # which data step to start from, excluding as many as needed for comparison across discontinuity
-            while i < len(xlist)-1:
-                if xlist[i]<finalXposition or xlist[i+1]<finalXposition:
-                    newxlist.append(xlist[i])
-                    newsteplist.append(dataSteps[i])
-                i += 1
-            
-            # generate lists of densities and pressures for continuity equation ahead and behind discontinuity
-            # as well as gas velocities behind the discontinuity
-            ahead_densitylist = []; ahead_pressurelist = []
-            behind_densitylist = []; behind_pressurelist = []
-            gasvelocity = []
-            sol1list = []; sol2list = []
-            for i in range(len(newsteplist)):
-                allXpositions = study.volatilecatalogue[case][mech][newsteplist[i]]["DataframeObj"]["x"]
-                allDensities = study.volatilecatalogue[case][mech][newsteplist[i]]["DataframeObj"]["Density"]
-                allVelocityUs = study.volatilecatalogue[case][mech][newsteplist[i]]["DataframeObj"]["Velocityu"]
-                allPressures = study.volatilecatalogue[case][mech][newsteplist[i]]["DataframeObj"]["Pressure"]
-                for j in range(1, len(allXpositions)):
-                    if allXpositions[j] == newxlist[i]:
-                        ahead_densitylist.append(allDensities[j])
-                        ahead_pressurelist.append(allPressures[j])
-                        # find max value of rho, p and u from 3 cm behind shock
-                        temp_dens = []; temp_u = []; temp_pres = []
-                        k = 1
-                        while allXpositions[j-k] > max(newxlist[i]-3, 0.5):
-                            temp_dens.append(allDensities[j-k])
-                            temp_u.append(allVelocityUs[j-k])
-                            temp_pres.append(allPressures[j-k])
-                            k += 1
-                        behind_densitylist.append(max(temp_dens))
-                        behind_pressurelist.append(max(temp_pres))
-                        gasvelocity.append(max(temp_u))
-                # calculate the wave speed at each point from momentum eq
-                # eq turns out to be a quadratic, so it's simpler to group terms
-                a = ahead_densitylist[i] - behind_densitylist[i]
-                b = 2 * behind_densitylist[i] * gasvelocity[i]
-                c = ahead_pressurelist[i] - behind_pressurelist[i] - behind_densitylist[i] * gasvelocity[i]**2
-                if (b**2 - 4*a*c) < 0:
-                    sol1 =  (-1*b) / (2*a)
-                    sol2 =  (-1*b) / (2*a)
-                else:
-                    sol1 = (-1*b + (b**2 - 4*a*c)**0.5) / (2*a)
-                    sol2 = (-1*b - (b**2 - 4*a*c)**0.5) / (2*a)
-                sol1list.append(sol1)
-                sol2list.append(sol2)
-            velocityDict[case][mech] = np.array([newxlist, sol1list, sol2list])
     return velocityDict
 
 # calculating wave velocity using the eq for the Rayleigh line
@@ -338,8 +181,8 @@ def CJmethod(study, caselist, mechanismlist):
         velocityDict[case] = {}
         for mechanism in mechanismlist:
             finalXposition = list(study.volatilecatalogue[case][mechanism]["dat_0.txt"]["DataframeObj"]["x"])[-1]
-            p1, p2, moles, leftover = case.split('_')   # pressures in kpa
-            dil, leftover1, leftover2 = mechanism.split('_')
+            _, p2, moles, _ = case.split('_')   # pressures in kpa
+            dil, _, _ = mechanism.split('_')
             T1 = 298    # kelvin
             q = 'C2H4:1. O2:3 ' + dil + ':' + moles
             mech = 'gri30_highT.cti'
@@ -370,14 +213,8 @@ def compare(study, caselist, mechanismlist):
     cjDict = CJmethod(study,caselist, mechanismlist)
     # framerate method
     frameDict = framerateSpeed(study, caselist, mechanismlist)
-    # density method with varying delta-x across shock
-    #densityDict1 = densityMethod(1, study, caselist, mechanismlist)
-    #densityDict2 = densityMethod(2, study, caselist, mechanismlist)
-    #densityDict3 = densityMethod(3, study, caselist, mechanismlist)
     # density method selecting the max near-post-disc values
     densityDictMax = densityMethodMax(study, caselist, mechanismlist)
-    # Momentum method selecting the max near-post-disc values
-    #momentumDictMax = momentumMethodMax(study, caselist, mechanismlist)
     # Rayleigh line method selecting the max near-post-disc values
     rayleightDictMax = rayleighMethodMax(study, caselist, mechanismlist)
     # plotting it all together
@@ -386,12 +223,7 @@ def compare(study, caselist, mechanismlist):
             fig, ax = plt.subplots()
             ax.plot(cjDict[case][mech][0],cjDict[case][mech][1], label="CJ speed", color='red')
             ax.plot(frameDict[case][mech][0],frameDict[case][mech][1], label="framerate", color='black')
-            #ax.plot(densityDict1[case][mech][0],densityDict1[case][mech][1], linestyle='--', label="density (i-1)")
-            #ax.plot(densityDict2[case][mech][0],densityDict2[case][mech][1], linestyle='--', label="density (i-2)")
-            #ax.plot(densityDict3[case][mech][0],densityDict3[case][mech][1], linestyle='--', label="density (i-3)")
             ax.plot(densityDictMax[case][mech][0],densityDictMax[case][mech][1], linestyle='-.', label="density MAX", color='green')
-            #ax.plot(momentumDictMax[case][mech][0],momentumDictMax[case][mech][1], linestyle='-.', label="momentum MAX sol1", color='orange')
-            #ax.plot(momentumDictMax[case][mech][0],momentumDictMax[case][mech][2], linestyle='-.', label="momentum MAX sol2", color='purple')
             ax.plot(rayleightDictMax[case][mech][0],rayleightDictMax[case][mech][1], linestyle='-.', label="Rayleigh MAX", color='blue')
             ax.set_xlabel("Distance [cm]")
             ax.set_ylabel("Detonation wave velocity [m/s]")
@@ -447,56 +279,21 @@ compare(study1, caselist)
 
 
 
-study1 = m1d.DetonationTube()
-#caselist = ["100_100_0_data", "100_100_2_data", "100_100_4_data"]
-#caselist = ["50_10_2_data", "50_10_4_data", "50_10_6_data", "50_10_18_data"]
+#study1 = m1d.DetonationTube()
 """ caselist = ["10_10_2_data", "10_10_4_data", "10_10_6_data", "10_10_8_data", "10_10_10_data",
             "20_20_2_data", "20_20_4_data", "20_20_8_data", "20_20_10_data"]  """
-caselist = ["10_10_8_data", "10_10_10_data", "20_20_8_data", "20_20_10_data"]
+#caselist = ["10_10_8_data", "10_10_10_data", "20_20_8_data", "20_20_10_data"]
 
-#caselist = ["20_20_4_data", "20_20_6_data"]
-
-mechanismlist = ["Ar_GRI_red2"]
-#mechanismlist = ["N2_C2H4_Jachi"]
+#mechanismlist = ["Ar_GRI_red2"]
 #mechanismlist = ["Ar_GRI_red2", "Ar_C2H4_Jachi", "N2_GRI_red2", "N2_C2H4_Jachi"]
 
 """ for case in caselist:
     study1.case_read(pressurestudy = case)
  """
 
-#hdrlist = ["Velocityu", "Pressure", "SpeedofSound"]
-#hdrlist = ["Density"]
-#rawplots(study1, caselist, mechanismlist, hdrlist)
-
-
-#frameratePlotter(study1, caselist, mechanismlist)
-
 #compare(study1, caselist, mechanismlist)
 
-#momentumMethodMax(study1, caselist, mechanismlist)
-#rayleighMethodMax(study1, caselist, mechanismlist)
-#CJmethod(study1, caselist, mechanismlist)
-
-""" for case in caselist:
-    for mech in mechanismlist:
-        xlist = study1.data_statistics()[case][mech]["ReactionFront"]["x"]
-        dataSteps = [stepstring for stepstring in study1.volatilecatalogue[case][mech].keys()]
-        newsteplist = []
-        newxlist = []
-        i = 2   # which data step to start from, excluding as many as needed for comparison across discontinuity
-        while xlist[i]<349.5 or xlist[i+1]<349.5:
-            newxlist.append(xlist[i])
-            newsteplist.append(dataSteps[i])
-            i += 1
-        print(len(newxlist))
-        allXpositions = study1.volatilecatalogue[case][mech][newsteplist[23]]["DataframeObj"]["x"]
-        for j in range(len(allXpositions)):
-            if allXpositions[j] == newxlist[23]:
-                #print(allXpositions[j-3], allXpositions[j-2], allXpositions[j-1], allXpositions[j])
-                print(allXpositions[j] - allXpositions[j-3]) 
- """
 
 
 if __name__ == "__main__":
-    #AllIn()
-    compare(study1, caselist, mechanismlist)
+    AllIn()
