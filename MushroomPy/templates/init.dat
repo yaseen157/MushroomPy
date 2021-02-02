@@ -1,0 +1,7 @@
+298.d0 10.d3      # Initial temperature and pressure
+2.3d0 2400.d0 0   # Front location, detonation speed, Galilean frame of detonation (1/0), 0=laboratory frame
+1.d0 3.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0   # Mole fractions unburned mixture
+2086.d0 50.d3     # Initial temperature and pressure in pocket
+1.65d0 2.15d0 0.d0 0.35d0   # Extensions of pocket, xmin, xmax, ymin, ymax
+1.d0 3.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0   # Mole fractions in pocket
+0   # Use Chemkin function for reaction terms = 0, keep as is

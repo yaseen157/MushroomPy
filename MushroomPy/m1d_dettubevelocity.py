@@ -377,7 +377,7 @@ def compare(study, caselist, mechanismlist):
     # density method selecting the max near-post-disc values
     densityDictMax = densityMethodMax(study, caselist, mechanismlist)
     # Momentum method selecting the max near-post-disc values
-    momentumDictMax = momentumMethodMax(study, caselist, mechanismlist)
+    #momentumDictMax = momentumMethodMax(study, caselist, mechanismlist)
     # Rayleigh line method selecting the max near-post-disc values
     rayleightDictMax = rayleighMethodMax(study, caselist, mechanismlist)
     # plotting it all together
@@ -447,15 +447,16 @@ compare(study1, caselist)
 
 
 
-#study1 = m1d.DetonationTube()
+study1 = m1d.DetonationTube()
 #caselist = ["100_100_0_data", "100_100_2_data", "100_100_4_data"]
 #caselist = ["50_10_2_data", "50_10_4_data", "50_10_6_data", "50_10_18_data"]
 """ caselist = ["10_10_2_data", "10_10_4_data", "10_10_6_data", "10_10_8_data", "10_10_10_data",
             "20_20_2_data", "20_20_4_data", "20_20_8_data", "20_20_10_data"]  """
+caselist = ["10_10_8_data", "10_10_10_data", "20_20_8_data", "20_20_10_data"]
 
 #caselist = ["20_20_4_data", "20_20_6_data"]
 
-#mechanismlist = ["Ar_GRI_red2"]
+mechanismlist = ["Ar_GRI_red2"]
 #mechanismlist = ["N2_C2H4_Jachi"]
 #mechanismlist = ["Ar_GRI_red2", "Ar_C2H4_Jachi", "N2_GRI_red2", "N2_C2H4_Jachi"]
 
@@ -495,5 +496,7 @@ compare(study1, caselist)
                 print(allXpositions[j] - allXpositions[j-3]) 
  """
 
+
 if __name__ == "__main__":
-    AllIn()
+    #AllIn()
+    compare(study1, caselist, mechanismlist)
