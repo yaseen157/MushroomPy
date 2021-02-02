@@ -112,13 +112,11 @@ class DetonationTube:
 
         **Example:**
         ::
-
             study1 = DetonationTube()
             study1.case_read(pressurestudy="100_100_0_data")
 
         Output:
         ::
-
             [10:46:16.814] Reading case '100_100_0_data'...
         """
 
@@ -197,6 +195,8 @@ class DetonationTube:
 
         **Example:**
         ::
+            import json
+
             study1 = DetonationTube()
             study1.case_read(pressurestudy="100_100_0_data")
 
@@ -410,6 +410,7 @@ class DetonationTube:
         available data headers (not relating to species fractions) from the list of pressure cases to be considered.
 
         **Parameters:**
+
         colourseed
             boolean, used to randomise the colour of the plots produced by this method. Optional, defaults to True.
 
@@ -693,7 +694,8 @@ class DetonationTube:
         In this case, the user wishes to identify which mechanisms resulted in a detonation of the pressure case.
 
         ::
-
+            import json
+            
             study1 = DetonationTube()
             study1.case_read(pressurestudy="100_100_0_data")
 
@@ -811,7 +813,6 @@ class DetonationTube:
         In this case, the user wishes to identify which mechanisms resulted in a detonation of the pressure case.
 
         ::
-
             study1 = DetonationTube()
             study1.case_read(pressurestudy="100_100_0_data")
 
@@ -935,6 +936,7 @@ class DetonationTube:
         """Use this method to return the initial conditions of the detonation initiation region.
 
         **Parameters:**
+
         pressurestudy
             string, the folder name for a pressure case to be considered.
 
@@ -942,6 +944,7 @@ class DetonationTube:
             string, the folder name for a mechanism unique to the pressure case being considered.
 
         **Returns:**
+
         p1
             float, the pressure of the gas to be detonated (in Pascal).
 
@@ -1012,16 +1015,20 @@ class DetonationTube:
         of pressure cases to be considered.
 
         **Parameters:**
+
         fast
             boolean, if True then before engaging in a lengthy calculation to determine CJ speeds, this method will
             attempt to use a semi-empirical estimator for vN/CJ ratio
 
         **Returns:**
+
         znd_pratio_dict
-            dictionary,
+            dictionary, structured by pressure study, mechanism, and finally the pressure ratio of vN to CJ at the spike.
 
         **Example:**
         ::
+            import json
+
             study1 = DetonationTube()
             study1.case_read(pressurestudy="100_100_0_data")
 
@@ -1101,6 +1108,7 @@ class DetonationTube:
         """Use this method to return the initial conditions of the detonation initiation region.
 
         **Parameters:**
+
         pressurestudy
             string, the folder name for a pressure case to be considered.
 
@@ -1108,6 +1116,7 @@ class DetonationTube:
             string, the folder name for a mechanism unique to the pressure case being considered.
 
         **Returns:**
+
         p1
             float, the pressure of the gas to be detonated (in Pascal).
 
@@ -1369,6 +1378,7 @@ class DetonationTube:
         to their position at the walls.
 
         **Parameters:**
+
         pressurestudy
             string, the folder name for a pressure case to be considered.
 
@@ -1558,6 +1568,7 @@ class DetonationTube:
         """Use this method to export the raw data plots for a given pressure case, mechanism, and header.
 
         **Parameters:**
+
         pressurestudy
             string, the folder name for a pressure case to be considered.
 
