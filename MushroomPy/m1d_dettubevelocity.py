@@ -220,14 +220,26 @@ def compare(study, caselist, mechanismlist):
     # plotting it all together
     for case in caselist:
         for mech in mechanismlist:
+            # Calculate Rayleigh method error at x=300cm
+            target = 300
+            lst = list(rayleightDictMax[case][mech][0])
+            closest = lst[min(range(len(lst)), key = lambda i: abs(lst[i]-target))]
+            k = lst.index(closest)
+            rayleighV = rayleightDictMax[case][mech][1][k]
+            error_percent = round( abs(cjDict[case][mech][1][0] - rayleighV) / cjDict[case][mech][1][0] * 100, 2)
+            # plotting
             fig, ax = plt.subplots()
             ax.plot(cjDict[case][mech][0],cjDict[case][mech][1], label="CJ speed", color='red')
             ax.plot(frameDict[case][mech][0],frameDict[case][mech][1], label="framerate", color='black')
-            ax.plot(densityDictMax[case][mech][0],densityDictMax[case][mech][1], linestyle='-.', label="density MAX", color='green')
-            ax.plot(rayleightDictMax[case][mech][0],rayleightDictMax[case][mech][1], linestyle='-.', label="Rayleigh MAX", color='blue')
+            ax.plot(densityDictMax[case][mech][0],densityDictMax[case][mech][1], linestyle='-.', label="density", color='green')
+            ax.plot(rayleightDictMax[case][mech][0],rayleightDictMax[case][mech][1], linestyle='-.', label="Rayleigh", color='blue')
             ax.set_xlabel("Distance [cm]")
             ax.set_ylabel("Detonation wave velocity [m/s]")
-            ax.set_ylim([0, max( max(frameDict[case][mech][1]), max(cjDict[case][mech][1]) )*1.1])
+            ax.set_title(f"Rayleigh: {error_percent}% error at x=300 cm")
+            framerate_half = frameDict[case][mech][1][round(len(frameDict[case][mech][1])/2):] # list of values for the second half of the tube
+            ymax = max( max(framerate_half), max(cjDict[case][mech][1]) )*1.1
+            ymin = min(framerate_half)*0.75
+            ax.set_ylim([ymin, ymax])
             ax.grid()
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             fig.savefig(f'{detVelocity_path}/{mech}/{case}_{mech}.png', bbox_inches='tight')
@@ -274,7 +286,7 @@ mechanismlist = ["Ar_GRI_red2"]
 for case in caselist:
     study1.case_read(pressurestudy = case)
 
-compare(study1, caselist)
+compare(study1, caselist, mechanismlist)
 """
 
 
@@ -282,18 +294,19 @@ compare(study1, caselist)
 #study1 = m1d.DetonationTube()
 """ caselist = ["10_10_2_data", "10_10_4_data", "10_10_6_data", "10_10_8_data", "10_10_10_data",
             "20_20_2_data", "20_20_4_data", "20_20_8_data", "20_20_10_data"]  """
-#caselist = ["10_10_8_data", "10_10_10_data", "20_20_8_data", "20_20_10_data"]
+#caselist = ["100_100_1_data"]
 
 #mechanismlist = ["Ar_GRI_red2"]
 #mechanismlist = ["Ar_GRI_red2", "Ar_C2H4_Jachi", "N2_GRI_red2", "N2_C2H4_Jachi"]
 
 """ for case in caselist:
-    study1.case_read(pressurestudy = case)
- """
+    study1.case_read(pressurestudy = case) """
+
 
 #compare(study1, caselist, mechanismlist)
 
 
 
-if __name__ == "__main__":
+""" if __name__ == "__main__":
     AllIn()
+ """
