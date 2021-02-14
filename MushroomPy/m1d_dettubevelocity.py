@@ -17,6 +17,7 @@ __author__ = "Bruno del Mazo Canaleta"
 
 
 import m1d_amroc as m1d
+import mpy_utilities as mpu
 import numpy as np
 from matplotlib import pyplot as plt
 from sdtoolbox.postshock import CJspeed, PostShock_fr, PostShock_eq
@@ -24,6 +25,26 @@ import os
 import glob
 import warnings
 
+
+"""
+To use this code you need to define a list of "cases", i.e. 'X_Y_Z_data' where
+X and Y are driver and driven pressures (in kpa) and Z is moles of diluent.
+
+Must also define a list of "mechanisms", e.g. "Ar_GRI_red2", which will specify 
+which diluent it is and which chemistry code's output to use.
+
+Then read through every case in the list and use whatever function you need.
+
+for example:
+
+study1 = m1d.DetonationTube()
+caselist = ["50_10_4_data"]
+mechanismlist = ["Ar_GRI_red2"]
+for case in caselist:
+    study1.case_read(pressurestudy = case)
+
+compare(study1, caselist, mechanismlist)
+"""
 
 # Only creates the raw plots of the prescribed cases and parameters.
 def rawplots(study, caselist, mechanismlist, hdrlist):
@@ -267,28 +288,39 @@ def AllIn():
         compare(study, [case], mechanismlist) # second argument must be a list, even though here we only pass a single case
 
 
-
-
 """
-To use this code you need to define a list of "cases", i.e. 'X_Y_Z_data' where
-X and Y are driver and driven pressures (in kpa) and Z is moles of diluent.
-
-Must also define a list of "mechanisms", e.g. "Ar_GRI_red2", which will specify 
-which diluent it is and which chemistry code's output to use.
-
-Then read through every case in the list and use whatever function you need.
-
-for example:
-
-study1 = m1d.DetonationTube()
-caselist = ["50_10_4_data"]
-mechanismlist = ["Ar_GRI_red2"]
-for case in caselist:
-    study1.case_read(pressurestudy = case)
-
-compare(study1, caselist, mechanismlist)
+The functions below this point produce contour plots.
+These were used for the user manual and for documentation.
 """
 
+def CJcontour(P0=10000., Pf=100000., T=298., diluent='Ar', percent0=0., percentf=90., n=4):
+    mech = 'gri30_highT.cti'
+    # generate array of pressures
+    p = np.linspace(P0, Pf, n)
+    # generate array of dilution ratios
+    dil = np.linspace(percent0, percentf, n)
+    # generate array of cj speeds
+    cj = np.zeros(len(p)*len(dil))
+    for i in range(len(dil)):
+        dilmoles = mpu.perc2mol(percent=dil[i])
+        q = 'C2H4:1. O2:3 ' + diluent + ':' + str(dilmoles)
+        for j in range(len(p)):
+            cj[i*len(p)+j] = CJspeed(P1=p[j], T1=T, q=q, mech=mech, fullOutput=False)
+    # produce arrays in the proper format for contour plotting
+    X, Y = np.meshgrid(p, dil)
+    Z = cj.reshape(X.shape)
+    # plot
+    fig = plt.figure()
+    ax1 = plt.contourf(X, Y, Z, levels=10, cmap='viridis')
+    plt.colorbar(ax1)
+    plt.show()
+
+"""
+generate array of pressures
+generate array of percent diluents
+calculate cj speed for every combination of pressure/dilution
+contour plot
+"""
 
 
 #study1 = m1d.DetonationTube()
