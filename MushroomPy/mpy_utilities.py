@@ -19,7 +19,16 @@ import datetime
 
 
 def gettimestr():
-    """Call to return a string with the current time."""
+    """Call to return a string with the current time.
+    
+    **Example:**
+    ::
+        print(gettimestr())
+    
+    Output:
+    ::
+        [12:38:36.594]
+    """
     timenow = datetime.datetime.now()
     hour = timenow.hour
     minute = timenow.minute
@@ -30,7 +39,16 @@ def gettimestr():
 
 
 def getdatetimestr():
-    """Call to return a string with the current date-time."""
+    """Call to return a string with the current date-time.
+    
+    **Example:**
+    ::
+        print(getdatetimestr())
+    
+    Output:
+    ::
+        2021-02-14_12-38-36
+    """
     timenow = datetime.datetime.now()
     hour = timenow.hour
     minute = timenow.minute
@@ -40,9 +58,47 @@ def getdatetimestr():
 
 # Convert percentage dilution into molar fractions
 def perc2mol(percent, fuelmols=1, oxmols=3):
+    """Calculate the number of moles of diluent in a mixture, from the dilution percentage.
+    
+    **Parameters:**
+
+    percent
+        float, the known percentage dilution of the mixture.
+    
+    fuelmols
+        float, the known molar quantity of fuel. Optional, defaults to unity.
+    
+    oxmols
+        float, the known molar quantity of oxidiser. Optional, defaults to 3.
+    
+    **Returns:**
+
+    dilmoles
+        float, the quantity of diluent in moles.
+    """
     dilmoles = percent * (fuelmols+oxmols) / (100 - percent)
     return dilmoles
 
 
-def mol2perc():
-    return
+def mol2perc(dilmols, fuelmols=1, oxmols=3):
+    """Calculate the number of moles of diluent in a mixture, from the dilution percentage.
+    
+    **Parameters:**
+
+    dilmols
+        float, the known quantity of diluent in the mixture.
+    
+    fuelmols
+        float, the known molar quantity of fuel. Optional, defaults to unity.
+    
+    oxmols
+        float, the known molar quantity of oxidiser. Optional, defaults to 3.
+    
+    **Returns:**
+
+    percent
+        float, the percentage dilution of the mixture.
+    """
+    percent = 100 * dilmols / (fuelmols + oxmols + dilmols)
+    return percent
+
