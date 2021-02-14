@@ -32,11 +32,15 @@ class ShockDetonationToolbox:
         self.q = q_initial
         self.mech = 'gri30_highT.cti'
 
-    def calc_cjspeed(self):
-        # Calculation for the Chapman-Jouget speeds
-        cj_speed_mps = CJspeed(P1=self.P1, T1=self.T1, q=self.q, mech=self.mech, fullOutput=False)
+        self.cjspeed = False
 
-        return cj_speed_mps
+    def calc_cjspeed(self):
+
+        if self.cjspeed is False:
+            # Calculation for the Chapman-Jouget speeds
+            self.cjspeed = CJspeed(P1=self.P1, T1=self.T1, q=self.q, mech=self.mech, fullOutput=False)
+
+        return self.cjspeed
 
     def calc_cjpressure(self):
         # Calculation for the Chapman-Jouget speeds
@@ -58,6 +62,13 @@ class ShockDetonationToolbox:
 
         return vn_pressure_pa
 
+class SDTTools:
+
+    def __init__():
+        return
+
+    def plot_cjcontour():
+        return
 
 if __name__ == "__main__":
     test0d = ShockDetonationToolbox(p_initial=100000, t_initial=298, q_initial="C2H4:1 O2:3")
