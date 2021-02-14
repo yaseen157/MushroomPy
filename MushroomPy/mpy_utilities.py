@@ -38,8 +38,11 @@ def getdatetimestr():
     date = timenow.date()
     return f"{str(date)}_{hour:02}-{minute:02}-{second:02}"
 
-
 # Convert percentage dilution into molar fractions
-def perc2mol(self, percent, fuelmols=1, oxmols=3):
+def perc2mol(percent, fuelmols=1, oxmols=3):
     dilmoles = percent * (fuelmols+oxmols) / (100 - percent)
     return dilmoles
+
+
+def mol2perc():
+    return
