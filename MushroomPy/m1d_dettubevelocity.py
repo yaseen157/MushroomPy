@@ -24,6 +24,7 @@ from sdtoolbox.postshock import CJspeed, PostShock_fr, PostShock_eq
 import os
 import glob
 import warnings
+import statistics
 
 
 """
@@ -270,13 +271,12 @@ def compare(study, caselist, mechanismlist):
 # This function finds all the available raw data in a prescribed directory and
 # runs the compare() function on all of it
 def AllIn(): 
-    study = m1d.DetonationTube()
 
+    #initialise mushroomPy
+    study = m1d.DetonationTube()
     # get all the data folder names from the 1D_AMROC_data folder
     pathcaselist = glob.glob(f'{study.simdata_path}/*')
     caselist = [os.path.basename(i) for i in pathcaselist]
-    #initialise mushroomPy
-    study = m1d.DetonationTube()
 
     for case in caselist:
         # get all the data for the relevant case
@@ -315,11 +315,72 @@ def CJcontour(P0=10000., Pf=100000., T=298., diluent='Ar', percent0=0., percentf
     plt.colorbar(ax1)
     plt.show()
 
+def Errorcontour(diluent='Ar', mechanism='GRI_red2'):
+    # initialise mushroompy
+    study = m1d.DetonationTube()
+    # get all the data folder names from the 1D_AMROC_data folder
+    pathcaselist = glob.glob(f'{study.simdata_path}/*')
+    caselist = [os.path.basename(i) for i in pathcaselist]
+    # extract initial conditions from cases
+    pdriver = []
+    pdriven = []
+    dilmoles = []
+    error = []
+    desiredmech = diluent + '_' + mechanism
+    for case in caselist:
+        # get a list of the available mechanism folders inside the particular case folder
+        pathmechanismlist = glob.glob(f'{study.simdata_path}/{case}/*')
+        mechanismlist = [os.path.basename(i) for i in pathmechanismlist]
+        # filter for the desired mechanism/diluent combination
+        for mech in mechanismlist:
+            if mech == desiredmech:
+                pr, pn, dm, _ = case.split('_')
+                if pr != '10' and pr != '20':
+                    pdriver.append(int(pr))
+                    pdriven.append(int(pn))
+                    dilmoles.append(int(dm))
+                    # generate theoretical cj speeds for each case
+                    P1 = float(pn)*1000
+                    q = q = 'C2H4:1. O2:3 ' + diluent + ':' + dm
+                    cj = CJspeed(P1=P1, T1=298., q=q, mech='gri30_highT.cti', fullOutput=False)
+                    # get all the data for the relevant case
+                    study.case_read(pressurestudy = case)
+                    # calculate velocity using Rayleigh line equation
+                    vdic = rayleighMethodMax(study, [case], [desiredmech])
+                    # Find index of position x=300cm
+                    xtarget = 300
+                    lst = list(vdic[case][desiredmech][0])
+                    closest = lst[min(range(len(lst)), key = lambda i: abs(lst[i]-xtarget))]
+                    k = lst.index(closest)
+                    # average velocity from x = 300cm onwards
+                    vray = statistics.mean(list(vdic[case][desiredmech][1])[k:])
+                    err = abs( (vray-cj)/cj*100 )
+                    error.append(err)
+    
+    # generate array of weighted average pressures
+    wp = np.array([pdriver[i]*50/350+pdriven[i]*300/350 for i in range(len(pdriver))])
+    # converd molar fractions into percentages
+    dperc = np.array([mpu.mol2perc(dilmols=d) for d in dilmoles])
+    # plot
+    error = np.array(error)
+    fig = plt.figure()
+    ax1 = plt.tricontourf(wp, dperc, error, cmap='viridis')
+    #ax1 = plt.contourf(wp, dperc, error, cmap='viridis')
+    plt.colorbar(ax1)
+    plt.show()
+
+    
+        
+
+
 """
-generate array of pressures
-generate array of percent diluents
-calculate cj speed for every combination of pressure/dilution
-contour plot
+
+make arrays of pressure ratios and dilutions
+    calculate the cj speed for each case
+calculate the 1D steady state velocity
+generate error array
+reshape arrays to be in the correct format for contour plots
+plot
 """
 
 

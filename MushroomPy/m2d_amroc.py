@@ -72,6 +72,32 @@ class prep_2d:
         dilmoles = percent * (fuelmols+oxmols) / (100 - percent)
         return dilmoles
 
+    # Calculate induction length for a given case
+    def induction_length(self, cj_speed=False, P1=False, T1=False, q=False, mech=False, t_end=1e-5):
+        # Assign default values innit
+        if cj_speed is False:
+            cj_speed = self.cj_speed
+        if P1 is False:
+            P1 = self.P1
+        if T1 is False:
+            T1 = self.T1
+        if q is False:
+            q = self.q
+        if mech is False:
+            mech = self.SDTmech
+        # Set up gas object
+        gas1 = ct.Solution(mech)
+        gas1.TPX = T1,P1,q
+        # Find post-shock conditions
+        gas = PostShock_fr(cj_speed, P1, T1, q, mech)
+        # Solve ZND ODEs to find the width of the ZND "plateau"
+        znd_out = zndsolve(gas,gas1,cj_speed,t_end=t_end,advanced_output=True)
+        plateau_length = znd_out['ind_len_ZND']
+        
+        return plateau_length
+
+
+
     """ # Returns the minimum number of cells required in the base mesh to
     # achieve at least k cells between the shock front and the combustion front.
     def minCells(self, P1=10000, T1=298, diluent='Ar', dilpercent=50, length=40, k=5, maxLevel=3, RF=2):
