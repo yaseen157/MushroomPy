@@ -16,6 +16,7 @@ Author Email: yr3g17@soton.ac.uk
 __author__ = "Yaseen Reza"
 
 import copy
+import datetime
 import math
 import os
 import re
@@ -142,10 +143,13 @@ class DetonationTube:
                     header = pd.read_csv(datatxt_path, nrows=0, sep=',\s+', skipinitialspace=True, engine='python')
                     header.columns = header.columns.str.replace(' ', '')
                     headers = header.columns[0].split(";")
+                    # If the data was taken from a 2-D sim, the header "r" needs to be replaced with "x"                    
+                    headers[1] = "x"
 
                     # Produce a dataframe of all the data read
                     data = pd.read_csv(datatxt_path, skiprows=1, delimiter=" ", names=headers[1:]).astype(float)
                     data.drop(data.columns[-1], axis=1, inplace=True)
+
 
                     # Package nicely into pandas dataframes in the master data dictionary, and sort by timestamp
                     temptxtdict[textfile] = {"Time Elapsed": float(headers[0]), "DataframeObj": data}
