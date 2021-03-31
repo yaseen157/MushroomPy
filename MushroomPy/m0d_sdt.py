@@ -24,7 +24,8 @@ from sdtoolbox.postshock import CJspeed, PostShock_fr, PostShock_eq
 
 
 class ShockDetonationToolbox:
-    """**Zero-dimensional** detonation analysis tool, using methods from the **Shock & Detonation Toolbox**."""
+    """**Zero-dimensional** detonation analysis tool, using methods from the **Shock & Detonation Toolbox**.
+    This object wraps functions of the SDT to speed up recall times (avoid unnecessary recalculations)."""
 
     def __init__(self, p_initial, t_initial, q_initial):
         self.P1 = p_initial
@@ -33,6 +34,8 @@ class ShockDetonationToolbox:
         self.mech = 'gri30_highT.cti'
 
         self.cjspeed = False
+        self.ps_eq = False
+        self.ps_fr = False
 
     def calc_cjspeed(self):
 
@@ -46,19 +49,35 @@ class ShockDetonationToolbox:
         # Calculation for the Chapman-Jouget speeds
         cj_speed_mps = self.calc_cjspeed()
 
-        # Post shock (equilibrium) pressure to be determined
-        gascj = PostShock_eq(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
-        cj_pressure_pa = gascj.P
+        if self.ps_eq is False:
+            # Post shock (equilibrium) pressure to be determined
+            self.ps_eq = PostShock_eq(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
+        
+        cj_pressure_pa = self.ps_eq.P
 
         return cj_pressure_pa
+    
+    def calc_cjtemperature(self):
+        # Calculation for the Chapman-Jouget speeds
+        cj_speed_mps = self.calc_cjspeed()
+
+        if self.ps_eq is False:
+            # Post shock (equilibrium) pressure to be determined
+            self.ps_eq = PostShock_eq(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
+        
+        cj_temperature_k = self.ps_eq.T
+
+        return cj_temperature_k
 
     def calc_vnpressure(self):
         # Calculation for the Chapman-Jouget speeds
         cj_speed_mps = self.calc_cjspeed()
 
-        # Post shock (frozen) pressure to be determined
-        gasvn = PostShock_fr(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
-        vn_pressure_pa = gasvn.P
+        if self.ps_fr is False:
+            # Post shock (frozen) pressure to be determined
+            self.ps_fr = PostShock_fr(U1=cj_speed_mps, P1=self.P1, T1=self.T1, q=self.q, mech=self.mech)
+
+        vn_pressure_pa = self.ps_fr.P
 
         return vn_pressure_pa
 
