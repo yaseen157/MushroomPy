@@ -1597,7 +1597,7 @@ class DetonationTube:
             [10:17:02.820] (Generated statistics in 0.9 s)
             [10:17:02.820] Plotting raw 'Pressure' data for '100_100_0_data\\Ar_C2H4_Jachi'...
             [10:17:17.871] (Plotted files in 15.1 s)
-            [10:17:17.871] >> Exported 51 file(s) to 'D:\...\RawdataPlots\100_100_0_data\Ar_C2H4_Jachi\Pressure'.
+            [10:17:17.871] >> Exported 51 file(s) to 'D:\\...\\RawdataPlots\\100_100_0_data\\Ar_C2H4_Jachi\\Pressure'.
         """
 
         # Preamble, before user is notified task is running
