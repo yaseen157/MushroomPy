@@ -56,6 +56,56 @@ def _getCellWidthURLext(queryfuel):
 
     return cellwidth_urlext
 
+
+def _pandascleaner(pandasdf):
+    """Given a dataframe scraped from the detonation database, return it with better formatting."""
+
+    # The headers need to be reformatted
+    headers = list(pandasdf.columns)
+    for i in range(len(headers)):
+        # If an undesirable character is detected in the header, left-strip and refactor the header
+        while((headers[i][0] == "#") or (headers[i][0] == " ")):
+            headers[i] = headers[i][1:]
+        if "%" in headers[i]:
+            headers[i] = "Percent".join(headers[i].split("%"))
+        
+        # The header should be properly case matched
+        if "(" in headers[i]:
+            splitheader = headers[i].split("(")
+            headers[i] = "(".join([splitheader[0].title(), splitheader[1]])
+        else:
+            headers[i] = headers[i].title()
+
+    # Refactor the dataframe column names with the reformatted versions
+    pandasdf.columns = headers
+
+    return pandasdf
+
+def _recastaspandas(basepandadf, dicttorecast):
+    """Given a dataframe and dictionary of initial conditions scraped from the database, return a full dataframe."""
+    
+    oldheaders_list = list(basepandadf.columns)
+    newheaders_list = list(dicttorecast.keys())+oldheaders_list
+
+    # Populate the new columns
+    data_array = []
+    for i_row in range(basepandadf.shape[0]):
+        data_row = []
+        for header in newheaders_list:
+            # If the data comes from the dataframe
+            if header in oldheaders_list:
+                data_row.append(basepandadf[header][i_row])
+            # Else the data came from the dictionary
+            else:
+                data_row.append(dicttorecast[header])
+        data_array.append(data_row)
+
+    # Construct a new dataframe
+    returndf = pd.DataFrame(data_array, columns=newheaders_list)
+
+    return returndf
+
+
 def getCellWidthData(queryfuel):
     """Given a queryfuel, return a list of dictionaries of all Cell Width data scraped from the 
     detonation database.
@@ -85,6 +135,27 @@ def getCellWidthData(queryfuel):
             Category  Fuel Sub-Category Oxidizer  Initial Pressure (kPa) Diluent Equivalence Ratio  Initial Temperature (K)  Cell Width (mm)
         0  cell size  C2H4        width      Air                   101.3                         1                   298.15             19.5
         1  cell size  C2H4        width      Air                   101.3                         1                   373.15             16.0
+    
+    **Example:**
+    ::
+        c2h4data = getCellWidthData(queryfuel="C2H4")
+        oxidiserdict = {}
+
+        for _, (k, v) in enumerate(c2h4data.items()):
+
+            oxidisers = list(v["Oxidizer"])
+            for oxidiser in oxidisers:
+                if oxidiser in list(oxidiserdict.keys()):
+                    oxidiserdict[oxidiser] += 1
+                else:
+                    oxidiserdict[oxidiser] = 0
+
+        print("{'Oxidiser': Number of Hits} ==> ", oxidiserdict)
+    
+    Output:
+    ::
+        {'Oxidiser': Number of Hits} ==>  {'O2': 92, 'Air': 53}
+    
     """
 
     urlext = _getCellWidthURLext(queryfuel=queryfuel)
@@ -154,53 +225,6 @@ def getCellWidthData(queryfuel):
 
     return returndict
 
-def _pandascleaner(pandasdf):
-    """Given a dataframe scraped from the detonation database, return it with better formatting."""
-
-    # The headers need to be reformatted
-    headers = list(pandasdf.columns)
-    for i in range(len(headers)):
-        # If an undesirable character is detected in the header, left-strip and refactor the header
-        while((headers[i][0] == "#") or (headers[i][0] == " ")):
-            headers[i] = headers[i][1:]
-        if "%" in headers[i]:
-            headers[i] = "Percent".join(headers[i].split("%"))
-        
-        # The header should be properly case matched
-        if "(" in headers[i]:
-            splitheader = headers[i].split("(")
-            headers[i] = "(".join([splitheader[0].title(), splitheader[1]])
-        else:
-            headers[i] = headers[i].title()
-
-    # Refactor the dataframe column names with the reformatted versions
-    pandasdf.columns = headers
-
-    return pandasdf
-
-def _recastaspandas(basepandadf, dicttorecast):
-    """Given a dataframe and dictionary of initial conditions scraped from the database, return a full dataframe."""
-    
-    oldheaders_list = list(basepandadf.columns)
-    newheaders_list = list(dicttorecast.keys())+oldheaders_list
-
-    # Populate the new columns
-    data_array = []
-    for i_row in range(basepandadf.shape[0]):
-        data_row = []
-        for header in newheaders_list:
-            # If the data comes from the dataframe
-            if header in oldheaders_list:
-                data_row.append(basepandadf[header][i_row])
-            # Else the data came from the dictionary
-            else:
-                data_row.append(dicttorecast[header])
-        data_array.append(data_row)
-
-    # Construct a new dataframe
-    returndf = pd.DataFrame(data_array, columns=newheaders_list)
-
-    return returndf
 
 if __name__ == "__main__":
 
