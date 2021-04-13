@@ -115,8 +115,8 @@ def calc_partialpressures(ptarget_pa, qtarget, mdt_m3, gdn_m3, prefillpressure_p
     labtemp_k = 298.15
 
     if prefillpressure_pa is None:
-        # Imperfect vacuum impurity pressure |+| gas trapped in upstream flexible tubing (can't evacuate 87% of the network)
-        impurity_tube_pa = 800 + 2e5 * (0.87 * gdn_m3) / mdt_m3
+        # Imperfect vacuum pressure in tube and 13% of network |+| gas trapped in flexible tubing (can't evacuate 87% of the network)
+        impurity_tube_pa = (800 * (0.13 * gdn_m3 + mdt_m3)  + 2e5 * (0.87 * gdn_m3)) / mdt_m3
         impurity_sys_pa = impurity_tube_pa * mdt_m3 / (mdt_m3 + gdn_m3)
     else:
         impurity_tube_pa = prefillpressure_pa * (mdt_m3 + gdn_m3) / mdt_m3
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     mdtvolume_m3 = calc_networkvolume(mdt_sizedef)
 
     # Calculate manometer readings an operator should see [Pa] for the piping system, when filling each gas
-    _, sys_manometer_vals = calc_partialpressures(ptarget_pa=1e5, qtarget="C2H4:1 O2:3 N2:4", mdt_m3=mdtvolume_m3, gdn_m3=gdnvolume_m3, prefillpressure_pa=1000)
+    _, sys_manometer_vals = calc_partialpressures(ptarget_pa=1e5, qtarget="C2H4:1 O2:3 N2:4", mdt_m3=mdtvolume_m3, gdn_m3=gdnvolume_m3, prefillpressure_pa=800)
     print(sys_manometer_vals)
 
     pass
