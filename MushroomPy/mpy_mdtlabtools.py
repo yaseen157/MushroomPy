@@ -125,17 +125,15 @@ def calc_partialpressures(ptarget_pa, qtarget, mdt_m3, gdn_m3, prefillpressure_p
     else:
         impurity_tube_pa = prefillpressure_pa * (mdt_m3 + 0.035 * gdn_m3) / mdt_m3
         impurity_sys_pa = prefillpressure_pa * (mdt_m3 + 0.035 * gdn_m3) / (mdt_m3 + gdn_m3)
-        # Confusingly, the calculated system impurity pressure is lower than what is given as the prefill pressure
+        # Confusingly, the calculated system impurity pressure is lower than what is given as the prefill pressure (which is for a small pipe section + the MDT)
         # This is because the upstream pipe is assumed to be in vacuum, and so the full-system "equivalent" impurity pressure is rightly lower than prefill pressure
-        # But an operator will never see this system equivalent pressure in value in reality, as the flexible tube contains no impurities (detonation gas only)
+        # But an operator will never see this system equivalent pressure value in reality, as the flexible tube in this case contains no impurities (detonation gas only)
         # Record cumulative totals (and so the running partial pressure is initially assigned to the prefill value, to not confuse a user reading the output dictionary)
         qpp_tube_pa = {"xx": impurity_tube_pa}
         qrunningpp_sys_pa = {"xx": prefillpressure_pa}
 
     # Target moles in the tube, as given by ideal gas law, n = PV/RT
     targetmdtmoles = ptarget_pa * mdt_m3 / 8.314 / labtemp_k
-
-    
 
     # Remove any gases from the component list if zero moles are used, and format q as dict
     qlist = [q.split(":") for q in qtarget.split(" ") if ":0" not in q]
