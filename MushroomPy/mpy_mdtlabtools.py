@@ -82,7 +82,7 @@ def calc_partialpressures(ptarget_pa, qtarget, mdt_m3, gdn_m3, prefillpressure_p
         float, the approximate volume of a direct connection to the modular detonation tube.
     
     prefillpressure_pa
-        float, the observed pressure of the system after settling from evacuation phase (in Pascal).
+        float, the observed pressure of the system after settling from evacuation phase (in Pascal). 
         Optional, defaults to None.
 
     **Example:**
@@ -104,30 +104,38 @@ def calc_partialpressures(ptarget_pa, qtarget, mdt_m3, gdn_m3, prefillpressure_p
         mdtvolume_m3 = calc_networkvolume(mdt_sizedef)
 
         # Calculate manometer readings an operator should see [Pa] for the piping system, when filling each gas
-        _, sys_manometer_vals = calc_partialpressures(ptarget_pa=1e5, qtarget="C2H4:1 O2:3 N2:4", mdt_m3=mdtvolume_m3, gdn_m3=gdnvolume_m3, prefillpressure_pa=1000)
+        _, sys_manometer_vals = calc_partialpressures(ptarget_pa=1e5, qtarget="C2H4:1 O2:3 N2:4", mdt_m3=mdtvolume_m3, gdn_m3=gdnvolume_m3, prefillpressure_pa=800)
         print(sys_manometer_vals)
 
     Output:
     ::
-        {'xx': 1000, 'C2H4': 12892.536570013475, 'O2': 48570.1462800539, 'N2': 100000.0}
+        {'xx': 800, 'C2H4': 12655.019628577507, 'O2': 48332.62933861794, 'N2': 100000.0}
     """
 
     labtemp_k = 298.15
 
+    # Imperfect vacuum pressure in tube and 3.5% of network |+| 2 bar gas trapped in flexible tubing (can't evacuate 96.5% of network)
     if prefillpressure_pa is None:
-        # Imperfect vacuum pressure in tube and 13% of network |+| gas trapped in flexible tubing (can't evacuate 87% of the network)
-        impurity_tube_pa = (800 * (0.13 * gdn_m3 + mdt_m3)  + 2e5 * (0.87 * gdn_m3)) / mdt_m3
+        impurity_tube_pa = (800 * (mdt_m3 + 0.035 * gdn_m3)  + 2e5 * (0.965 * gdn_m3)) / mdt_m3
         impurity_sys_pa = impurity_tube_pa * mdt_m3 / (mdt_m3 + gdn_m3)
+        # Record cumulative totals (simply directly taking impurity pressures in the system)
+        qpp_tube_pa = {"xx": impurity_tube_pa}
+        qrunningpp_sys_pa = {"xx": impurity_sys_pa}
+    # The prefill pressure in tube and 3.5% of network is read by static pressure transmitter and given as an argument
     else:
-        impurity_tube_pa = prefillpressure_pa * (mdt_m3 + gdn_m3) / mdt_m3
-        impurity_sys_pa = prefillpressure_pa
+        impurity_tube_pa = prefillpressure_pa * (mdt_m3 + 0.035 * gdn_m3) / mdt_m3
+        impurity_sys_pa = prefillpressure_pa * (mdt_m3 + 0.035 * gdn_m3) / (mdt_m3 + gdn_m3)
+        # Confusingly, the calculated system impurity pressure is lower than what is given as the prefill pressure
+        # This is because the upstream pipe is assumed to be in vacuum, and so the full-system "equivalent" impurity pressure is rightly lower than prefill pressure
+        # But an operator will never see this system equivalent pressure in value in reality, as the flexible tube contains no impurities (detonation gas only)
+        # Record cumulative totals (and so the running partial pressure is initially assigned to the prefill value, to not confuse a user reading the output dictionary)
+        qpp_tube_pa = {"xx": impurity_tube_pa}
+        qrunningpp_sys_pa = {"xx": prefillpressure_pa}
 
     # Target moles in the tube, as given by ideal gas law, n = PV/RT
     targetmdtmoles = ptarget_pa * mdt_m3 / 8.314 / labtemp_k
 
-    # Record cumulative totals
-    qpp_tube_pa = {"xx": impurity_tube_pa}
-    qrunningpp_sys_pa = {"xx": impurity_sys_pa}
+    
 
     # Remove any gases from the component list if zero moles are used, and format q as dict
     qlist = [q.split(":") for q in qtarget.split(" ") if ":0" not in q]
