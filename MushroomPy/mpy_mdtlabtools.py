@@ -172,8 +172,8 @@ if __name__ == "__main__":
 
     # Sizing parameters of the gas delivery network between gas bottles and MDT
     gdn_sizedef = {
-        "12.7 mm outer lab [m]": 3.10,
-        "12.7 mm inner lab [m]": 6.55,
+        # "12.7 mm outer lab [m]": 3.10,
+        # "12.7 mm inner lab [m]": 6.55,
         "6.35 mm lab setup [m]": 1.40
     }
 
